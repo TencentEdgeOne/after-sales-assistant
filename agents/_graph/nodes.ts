@@ -12,6 +12,19 @@ const logger = createLogger("nodes");
 // ─── Blob Order Helpers ───
 
 /**
+ * Regex that matches real customer order IDs (e.g. ORD-20250520-001).
+ * Only blob summaries whose filename matches this pattern are treated as
+ * customer orders. Policy/process docs that were mistakenly uploaded under
+ * category "order_doc" will NOT match and will therefore be filtered out.
+ */
+const ORDER_FILENAME_RE = /^ORD-\d{8}-\d{3,}/i;
+
+/** Filter blob summaries to real order documents only. */
+function filterOrderSummaries(summaries: Awaited<ReturnType<typeof getAllSummaries>>) {
+  return summaries.filter(s => ORDER_FILENAME_RE.test(s.filename));
+}
+
+/**
  * Look up an order from the Blob knowledge base (order_doc category).
  * Matches by filename (== orderId) or keywords containing the orderId.
  */
@@ -212,8 +225,8 @@ export async function lookupOrder(state: AfterSalesStateType) {
   const orderId = state.orderId;
 
   if (!orderId) {
-    // Show MOCK orders + Blob order_doc list
-    const blobSummaries = await getAllSummaries("order_doc");
+    // Show MOCK orders + Blob order_doc list (real orders only)
+    const blobSummaries = filterOrderSummaries(await getAllSummaries("order_doc"));
 
     const mockLines = MOCK_ORDERS.map(o => {
       const itemNames = o.items.map(i => i.name).join("、");
@@ -268,8 +281,8 @@ export async function lookupOrder(state: AfterSalesStateType) {
 
 export async function requestRefund(state: AfterSalesStateType) {
   if (!state.currentOrder && !state.orderId) {
-    // Show MOCK orders + Blob order_doc, marking eligibility
-    const blobSummaries = await getAllSummaries("order_doc");
+    // Show MOCK orders + Blob order_doc, marking eligibility (real orders only)
+    const blobSummaries = filterOrderSummaries(await getAllSummaries("order_doc"));
 
     const mockLines = MOCK_ORDERS.map(o => {
       const itemNames = o.items.map(i => i.name).join("、");
@@ -387,8 +400,8 @@ export async function requestRefund(state: AfterSalesStateType) {
 
 export async function requestExchange(state: AfterSalesStateType) {
   if (!state.currentOrder && !state.orderId) {
-    // Show MOCK orders + Blob order_doc, marking eligibility
-    const blobSummaries = await getAllSummaries("order_doc");
+    // Show MOCK orders + Blob order_doc, marking eligibility (real orders only)
+    const blobSummaries = filterOrderSummaries(await getAllSummaries("order_doc"));
 
     const mockLines = MOCK_ORDERS.map(o => {
       const itemNames = o.items.map(i => i.name).join("、");
