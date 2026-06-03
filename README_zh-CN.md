@@ -1,168 +1,122 @@
-# 售后客服助手 - EdgeOne Makers AI Agent Template
+# After-Sales Assistant（售后助手）
 
-基于 [LangGraph](https://langchain-ai.github.io/langgraphjs/) StateGraph 工作流引擎构建的智能售后客服助手，部署在 [EdgeOne Makers](https://edgeone.ai) Agent 平台。支持订单查询、退款/换货申请、知识库问答，并内置可视化知识库管理面板。
+**语言：** [English](./README.md) | 简体中文
 
-## 部署
-[![使用 EdgeOne Makers 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.cloud.tencent.com/edgeone/makers/new?template=after-sales-assistant&from=within&fromAgent=1&agentLang=typescript)
+基于 LangGraph 框架构建、部署在 EdgeOne Makers 上的 AI 售后客服 Agent，支持订单管理、知识库检索与交互式卡片。
 
-## 功能特性
+**Framework:** LangGraph · **Category:** Chat · **Language:** TypeScript
 
-- **LangGraph StateGraph 工作流** — 意图识别 → 路由分发 → 专项节点处理，条件边实现灵活跳转
-- **知识库问答** — Blob 存储多类别文档（FAQ、政策、产品手册、订单文档），摘要路由 + 按需加载，无需向量数据库
-- **订单全流程处理** — 查询订单状态、申请退款、申请换货，卡片式可视化展示结果
-- **多轮上下文连贯** — `pending_action` 机制跨请求传递意图，AI 列出订单列表后用户直接回复订单号即可继续原流程
-- **知识库管理面板** — 文档上传/编辑/删除，AI 自动生成摘要与关键词，Tab 补全快速填充
-- **一键导入演示数据** — 内置退货政策、FAQ、产品手册示例文档，新用户快速上手
-- **卡片式 UI 交互** — 订单详情卡、退款进度卡、换货确认卡、知识库来源卡
-- **智能推荐按钮** — 每次回答后根据上下文动态生成快捷操作建议
-- **SSE 流式响应** — 实时推送工作流步骤进度和 AI 回复
+[![Deploy to EdgeOne Makers](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.tencentcloud.com/edgeone/makers/new?template=after-sales-assistant&from=within&fromAgent=1&agentLang=typescript)
 
-## 工作流架构
+<!-- TODO: confirm -->
+![preview](./assets/preview.png)
 
-```
-START → intent_recognition → [routeByIntent]
-  ├── faq_search       → (检索知识库 → 生成回答) → END
-  ├── lookup_order     → (查询订单 / 展示列表) → END
-  ├── request_refund   → (资格校验 → 提交申请) → END
-  ├── request_exchange → (资格校验 → 提交申请) → END
-  └── general_chat     → END
-```
+## Overview
 
-**跨轮次上下文传递：**
-- 当 AI 展示订单列表、等待用户选择时，发送 `pending_action` SSE 事件
-- 前端保存 `pendingAction` 状态并附带到下次请求
-- `intentRecognition` 节点检测到 `waitingForUser` + 订单号格式 → 跳过 LLM，直接沿用原意图继续流程
+本模板提供端到端的售后助手能力，通过对话界面处理退款、换货、订单查询与 FAQ。LangGraph 状态机将用户意图路由到专用处理节点，在多轮对话中持久化订单状态，并为订单详情与退款进度渲染富交互卡片。
 
-## 技术栈
+- **基于意图的路由** — LangGraph 条件边自动将请求分类为 FAQ 搜索、订单查询、退款、换货或通用聊天。
+- **订单生命周期管理** — 查询订单状态、处理退款与换货申请，全部状态通过内置存储持久化。
+- **知识库检索** — 将文档上传至多分类 Blob 存储；Agent 检索相关段落以回答售后政策问题。
+- **交互式 UI 卡片** — Agent 发出结构化卡片事件（订单详情、退款进度、换货确认、FAQ 来源），前端直接内联渲染。
+- **多轮上下文保持** — 对话状态与订单上下文通过 `langgraphStore` 跨轮次保留，支持“我另一个订单呢？”这类追问。
 
-| 层级 | 技术 |
-|------|------|
-| 前端 | Next.js + React 19 (App Router) |
-| 样式 | Tailwind CSS + @tailwindcss/typography |
-| Agent 框架 | LangGraph (`@langchain/langgraph`) StateGraph |
-| LLM | ChatOpenAI via EdgeOne AI Gateway |
-| 知识库存储 | `@edgeone/pages-blob` |
-| 状态持久化 | `context.store.langgraphStore` (KV) |
-| 流式传输 | Server-Sent Events (SSE) |
-| Markdown 渲染 | marked |
-
-## 快速开始
-
-```bash
-# 安装依赖
-npm install
-
-# 配置环境变量
-cp .env.example .env
-# 编辑 .env，填入 AI_GATEWAY_API_KEY 和 AI_GATEWAY_BASE_URL
-
-# 启动开发服务器
-npx edgeone dev
-```
-
-访问 `http://localhost:8088`，点击聊天窗口中的「一键导入演示数据」按钮即可体验完整功能。
-
-## 环境变量
+## Environment Variables
 
 | 变量 | 必填 | 说明 |
-|------|------|------|
-| `AI_GATEWAY_API_KEY` | 是 | AI Gateway API Key |
-| `AI_GATEWAY_BASE_URL` | 是 | AI Gateway 基础 URL |
-| `AI_MODEL` | 否 | 模型名称（默认 `@makers/deepseek-v4-flash`） |
+|----------|----------|-------------|
+| `AI_GATEWAY_API_KEY` | 是 | 模型网关 API Key。使用 Makers Models 的 API Key，或任何兼容 OpenAI 协议的提供商 Key。 |
+| `AI_GATEWAY_BASE_URL` | 是 | 网关基础地址。使用 Makers Models 时填写 `https://ai-gateway.edgeone.link/v1`。 |
+| `AI_GATEWAY_MODEL` | 否 | 模型 ID。默认为 `@makers/deepseek-v4-flash`。 |
+| `PROJECT_ID` | 否 | Pages 项目 ID，用于 Blob 存储（知识库文档）。 |
+| `EDGEONE_PAGES_API_TOKEN` | 否 | Blob 存储的 API Token。 |
 
-> `PROJECT_ID` 和 `EDGEONE_PAGES_API_TOKEN` 在部署环境中自动注入。本地开发如需知识库文档持久化，需在 `.env` 中手动配置。
+本模板遵循 OpenAI 兼容标准 —— 可指向 Makers Models 或任何兼容提供商。
+
+### 如何获取 AI_GATEWAY_API_KEY
+
+1. 打开 Makers 控制台（https://console.cloud.tencent.com/edgeone/makers）
+2. 登录并启用 Makers
+3. 进入 Makers → Models → API Key，创建 Key
+4. 将其填入 `AI_GATEWAY_API_KEY`
+
+> 内置模型在额度内免费，适合验证；生产环境请绑定自费厂商 Key（BYOK）。
+
+## 本地开发
+
+**前置依赖**
+- Node.js 18+
+- EdgeOne CLI（`npm i -g @edgeone/cli`）
+
+```bash
+npm install
+# 本项目已包含 .env 文件，请直接更新其中的 AI_GATEWAY_API_KEY 与 AI_GATEWAY_BASE_URL
+edgeone makers dev
+```
+
+本地可观测面板地址：http://localhost:8080/agent-metrics。
 
 ## 项目结构
 
 ```
 after-sales-assistant-edgeone/
 ├── agents/
-│   ├── _shared.ts          # 模型初始化、SSE 工具、Order 类型、Blob 存取
-│   ├── _data/
-│   │   ├── orders.ts       # 演示订单数据 + seedOrders()
-│   │   ├── faq.ts          # 演示 FAQ 文档
-│   │   └── demo-docs.ts    # 退货政策、产品手册等演示文档
+│   ├── _shared.ts          # 模型初始化、SSE 辅助函数、订单类型与持久化
+│   ├── _data/              # 模拟订单数据与演示文档
 │   ├── _graph/
-│   │   ├── state.ts        # AfterSalesState Annotation 定义
-│   │   ├── nodes.ts        # 5 个图节点（意图识别、FAQ、订单、退款、换货）
-│   │   ├── edges.ts        # 条件路由函数
-│   │   └── builder.ts      # StateGraph 编译
-│   ├── chat.ts             # 主入口：状态恢复 → 运行图 → SSE 流 → 状态保存
-│   ├── manage.ts           # 知识库文档管理（CRUD + AI 摘要再生）
-│   ├── upload.ts           # 文档上传 + AI 自动生成摘要关键词
-│   ├── seed-demo.ts        # 一键导入演示数据
-│   └── stop.ts             # 中断活跃运行
-├── app/
-│   ├── page.tsx            # 主页面（双面板布局：聊天 + 管理）
-│   ├── globals.css         # Tailwind + prose-chat 样式
-│   └── components/
-│       ├── chat-panel.tsx       # 对话面板（SSE 解析 + 卡片渲染 + 推荐按钮）
-│       ├── manage-panel.tsx     # 知识库管理面板（上传/编辑/删除）
-│       └── cards/
-│           ├── order-card.tsx       # 订单详情卡片
-│           ├── refund-card.tsx      # 退款进度卡片
-│           ├── exchange-card.tsx    # 换货确认卡片
-│           └── faq-card.tsx         # 知识库来源卡片
-└── lib/
-    └── doc-store.ts        # Blob 文档存储工具（多类别 CRUD + 摘要索引）
+│   │   ├── builder.ts      # LangGraph 状态机编译
+│   │   ├── edges.ts        # 意图路由逻辑
+│   │   ├── nodes.ts        # 节点实现（意图、FAQ、订单、退款、换货）
+│   │   └── state.ts        # 图状态结构
+│   ├── chat/               # POST /chat —— 主 SSE 对话处理器
+│   └── stop/               # POST /stop —— 中止运行
+├── cloud-functions/
+│   ├── health/             # GET /health
+│   ├── manage/             # POST /manage —— 文档增删改查
+│   ├── seed-demo/          # POST /seed-demo —— 批量导入演示文档
+│   └── upload/             # POST /upload —— 文件或文本上传
+├── app/                    # Next.js App Router 前端
+├── lib/
+│   ├── doc-store.ts        # 多分类 Blob 文档存储
+│   └── parser.ts           # 文件解析器（PDF/DOCX/XLSX/TXT/MD）
+└── edgeone.json            # EdgeOne 部署配置
 ```
 
-## 知识库
+以 `_` 为前缀的文件是私有模块，不会作为公共路由暴露。
 
-文档分为四个类别，统一存储在 EdgeOne Makers Blob（`aftersales-kb` bucket）：
+## 工作原理
 
-| 类别 | 说明 | 示例 |
-|------|------|------|
-| `faq` | 常见问题解答 | 退货流程、运费政策 |
-| `policy` | 售后政策文档 | 退货政策、质保说明 |
-| `product` | 产品手册/说明 | 使用说明、规格参数 |
-| `order_doc` | 订单文档 | 用户导入的历史订单，filename 为订单号 |
+### 运行模式
+`agents/` 下的文件以**会话模式**运行：相同 `conversation_id` 的请求会被粘性路由到同一 Agent 实例。这意味着多轮对话自动共享同一份内存上下文。
 
-`order_doc` 类别支持直接通过聊天查询 Blob 订单：输入订单号时，若 MOCK 数据中不存在，自动回退查询 Blob，确保知识库导入的订单也能正常触发退款/换货流程。
+### 端到端流程
 
-## SSE 事件协议
+1. **请求入口** —— 前端向 `/chat` POST `{ message, pendingAction }`。
+2. **意图识别** —— LangGraph 的 `intent_recognition` 节点将用户消息分类为：`faq_search`、`lookup_order`、`request_refund`、`request_exchange` 或 `general_chat`。
+3. **条件路由** —— `routeByIntent` 边将请求分发到对应节点。
+4. **工具 / 存储执行** —
+   - `lookup_order` 查询 `langgraphStore` 获取订单并发出 `order_detail` 卡片。
+   - `faq_search` 从 Blob 存储检索文档并生成带来源引用的答案。
+   - `request_refund` / `request_exchange` 校验订单状态、更新状态并发出进度卡片。
+5. **状态持久化** —— 每轮结束后，图状态（当前订单、意图、等待标记）以 `conversation_id` 为键写回 `langgraphStore`。
+6. **SSE 响应** —— 处理器向前端流式推送工作流步骤、AI 文本、卡片事件与智能跟进建议。
+7. **中止** —— 向 `/stop` POST 对话 ID，调用 `context.utils.abortActiveRun` 取消正在进行的生成。
 
-```typescript
-// 工作流步骤（显示加载进度）
-{ type: "workflow_step", step: string, label: string }
+### 关键路由与参数
+- `/chat` —— 主对话端点。接收 `message` 与可选的 `pendingAction`。
+- `/stop` —— 取消某对话的活跃运行。
+- `conversation_id` 由运行时通过 `context.conversation_id` 自动提供。
 
-// AI 文本回复
-{ type: "ai_response", content: string }
+### 运行参数
+- `agents.timeout`：900 秒
+- `agents.sandbox.timeout`：900 秒
 
-// UI 卡片（前端渲染对应组件）
-{ type: "card", cardType: "order_detail" | "refund_progress" | "exchange_confirm" | "faq_sources", data: {...} }
+## 相关资源
 
-// 跨轮次上下文传递（等待用户选择订单号时）
-{ type: "pending_action", intent: string }
+- [Makers Agents 文档](https://edgeone.ai/makers)
+- [Makers 快速开始](https://edgeone.ai/makers/docs/quickstart)
+- [Makers Models](https://console.cloud.tencent.com/edgeone/makers/models)
 
-// 推荐操作按钮
-{ type: "suggest_actions", actions: Array<{ id: string, emoji: string, title: string, action?: string }> }
-
-// 心跳 + 完成信号
-{ type: "ping", ts: number }
-{ type: "status", status: "complete" }
-data: [DONE]
-```
-
-## EdgeOne Makers 平台能力
-
-| 能力 | API | 用途 |
-|------|-----|------|
-| Blob 存储 | `@edgeone/pages-blob` | 知识库文档存储（内容 + 摘要索引） |
-| KV 存储 | `context.store.langgraphStore.put/get` | 工作流状态 + 订单数据持久化 |
-| 消息历史 | `context.store.appendMessage` | 对话记录保存 |
-| 运行取消 | `context.utils.abortActiveRun()` | `/stop` 端点 |
-| 会话隔离 | `context.conversation_id` | 多用户并发 |
-| AI Gateway | `@makers/deepseek-v4-flash` | LLM 调用 |
-
-## 部署
-
-```bash
-npx edgeone deploy
-```
-
-部署后 Blob 存储、AI Gateway、KV 存储等平台能力自动可用，无需额外配置。
-
-## License
+## 许可证
 
 MIT

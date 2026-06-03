@@ -21,6 +21,44 @@ const logger = createLogger("manage");
 
 const VALID_CATEGORIES: DocCategory[] = ["faq", "policy", "product", "order_doc"];
 
+// Order ID pattern (e.g. ORD-20250520-001) — same as backend nodes.ts
+const ORDER_FILENAME_RE = /^ORD-\d{8}-\d{3,}/i;
+
+/** Parse structured fields from a free-text order_doc body. */
+function parseOrderDocFields(content: string): {
+  totalAmount?: number;
+  carrier?: string;
+  trackingNumber?: string;
+  itemNames?: string;
+  status?: string;
+} {
+  const result: any = {};
+
+  const amountMatch = content.match(/金额[：:]\s*¥?\s*(\d+(?:\.\d+)?)/);
+  if (amountMatch) result.totalAmount = parseFloat(amountMatch[1]);
+
+  // 快递：顺丰速运 SF1234567890  → carrier="顺丰速运" trackingNumber="SF1234567890"
+  const expressMatch = content.match(/快递[：:]\s*(\S+?)\s+([A-Za-z0-9-]+)/);
+  if (expressMatch) {
+    result.carrier = expressMatch[1];
+    result.trackingNumber = expressMatch[2];
+  } else {
+    const carrierOnly = content.match(/快递[：:]\s*(\S+)/);
+    if (carrierOnly) result.carrier = carrierOnly[1];
+  }
+
+  const productMatch = content.match(/商品[：:]\s*([^\n]+)/);
+  if (productMatch) result.itemNames = productMatch[1].trim();
+
+  if (content.includes("换货申请")) result.status = "exchange_requested";
+  else if (content.includes("退款申请") || content.includes("退款中")) result.status = "refund_requested";
+  else if (content.includes("已签收") || content.includes("已收货") || content.includes("签收")) result.status = "delivered";
+  else if (content.includes("运输中") || content.includes("已发货") || content.includes("在途")) result.status = "shipped";
+  else if (content.includes("待发货") || content.includes("未发货")) result.status = "pending";
+
+  return result;
+}
+
 function jsonResponse(data: any, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -72,6 +110,12 @@ export async function onRequest(context: any) {
   const body = request?.body ?? {};
   const { action, category, docId, content, title } = body;
 
+  // Get store (cloud-functions use context.agent?.store)
+  const store = context.agent?.store ?? null;
+  if (!store) {
+    return jsonResponse({ error: "STORE_NOT_CONFIGURED", message: "Storage is not available. Deploy to EdgeOne Makers for automatic configuration." }, 503);
+  }
+
   if (!action) {
     return jsonResponse({ error: "Missing action field" }, 400);
   }
@@ -83,11 +127,25 @@ export async function onRequest(context: any) {
         if (category && !VALID_CATEGORIES.includes(category)) {
           return jsonResponse({ error: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(", ")}` }, 400);
         }
-        const summaries = await getAllSummaries(category);
+        const summaries = await getAllSummaries(store, category);
+
+        // Enrich order_doc entries (with order-id filename) with parsed fields
+        const enriched = await Promise.all(
+          summaries.map(async (s) => {
+            if (s.category === "order_doc" && ORDER_FILENAME_RE.test(s.filename)) {
+              const content = await getDocContent(store, s.category, s.docId);
+              if (content) {
+                return { ...s, ...parseOrderDocFields(content) };
+              }
+            }
+            return s;
+          })
+        );
+
         return jsonResponse({
           success: true,
-          documents: summaries,
-          total: summaries.length,
+          documents: enriched,
+          total: enriched.length,
         });
       }
 
@@ -96,12 +154,11 @@ export async function onRequest(context: any) {
         if (!docId || !category) {
           return jsonResponse({ error: "Missing docId or category" }, 400);
         }
-        const docContent = await getDocContent(category, docId);
+        const docContent = await getDocContent(store, category, docId);
         if (!docContent) {
           return jsonResponse({ error: `Document not found: ${category}/${docId}` }, 404);
         }
-        // Also get the summary for metadata
-        const allSummaries = await getAllSummaries(category);
+        const allSummaries = await getAllSummaries(store, category);
         const summary = allSummaries.find(s => s.docId === docId) || null;
 
         return jsonResponse({
@@ -121,7 +178,7 @@ export async function onRequest(context: any) {
         if (!docId || !category) {
           return jsonResponse({ error: "Missing docId or category" }, 400);
         }
-        const deleted = await removeDoc(category, docId);
+        const deleted = await removeDoc(store, category, docId);
         if (!deleted) {
           return jsonResponse({ error: `Failed to delete document: ${category}/${docId}` }, 404);
         }
@@ -140,15 +197,12 @@ export async function onRequest(context: any) {
 
         const docFilename = title || `${docId}.txt`;
 
-        // Remove old doc and re-save
-        await removeDoc(category, docId);
+        await removeDoc(store, category, docId);
 
-        // Regenerate summary
         logger.log(`Regenerating summary for ${category}/${docId}...`);
         const { summary, keywords } = await regenerateSummary(content, docFilename, category);
 
-        // Save updated document
-        await saveDoc(category as DocCategory, docId, docFilename, content, summary, keywords);
+        await saveDoc(store, category as DocCategory, docId, docFilename, content, summary, keywords);
 
         logger.log(`Updated document: ${category}/${docId}`);
         return jsonResponse({
@@ -160,6 +214,23 @@ export async function onRequest(context: any) {
           keywords,
           charCount: content.length,
         });
+      }
+
+      // ─── List Orders ───
+      case "list_orders": {
+        const kv = store?.langgraphStore ?? store;
+        const ORDERS_NS = ["aftersales", "orders"];
+        const MANIFEST_NS = ["aftersales", "orders_manifest"];
+        const idx = await kv.get(MANIFEST_NS, "all").catch(() => null);
+        const ids: string[] = idx?.value?.ids || [];
+        logger.log(`list_orders: manifest has ${ids.length} ids`);
+        const orders = await Promise.all(
+          ids.map(async (id: string) => {
+            const item = await kv.get(ORDERS_NS, id).catch(() => null);
+            return item?.value || null;
+          })
+        );
+        return jsonResponse({ success: true, orders: orders.filter(Boolean) });
       }
 
       default:

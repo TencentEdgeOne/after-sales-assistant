@@ -4,10 +4,46 @@
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { createModel, createLogger } from "../_shared";
 import type { AfterSalesStateType } from "./state";
-import { getAllSummaries, getDocContent, saveDoc } from "../../lib/doc-store";
-import { MOCK_ORDERS } from "../_data/orders";
+import { getAllSummaries, getDocContent, saveDoc, getGlobalStore } from "../../lib/doc-store";
+import type { Order } from "../_shared";
 
 const logger = createLogger("nodes");
+
+// ─── Store Order Helpers ───
+
+const ORDERS_NAMESPACE = ["aftersales", "orders"];
+const ORDERS_MANIFEST_NAMESPACE = ["aftersales", "orders_manifest"];
+
+async function getAllOrders(): Promise<Order[]> {
+  try {
+    const store = getGlobalStore();
+    if (!store) return [];
+    const kv = store?.langgraphStore ?? store;
+    // Manifest-based lookup — separate namespace to avoid any KV key collision
+    const idx = await kv.get(ORDERS_MANIFEST_NAMESPACE, "all").catch(() => null);
+    const ids: string[] = idx?.value?.ids || [];
+    if (ids.length === 0) return [];
+    const orders = await Promise.all(
+      ids.map(async (id: string) => {
+        const item = await kv.get(ORDERS_NAMESPACE, id).catch(() => null);
+        return (item?.value as Order) || null;
+      })
+    );
+    return orders.filter(Boolean) as Order[];
+  } catch {}
+  return [];
+}
+
+async function getOrderById(orderId: string): Promise<Order | null> {
+  try {
+    const store = getGlobalStore();
+    if (!store) return null;
+    const kv = store?.langgraphStore ?? store;
+    const item = await kv.get(ORDERS_NAMESPACE, orderId);
+    return (item?.value as Order) ?? null;
+  } catch {}
+  return null;
+}
 
 // ─── Blob Order Helpers ───
 
@@ -225,10 +261,13 @@ export async function lookupOrder(state: AfterSalesStateType) {
   const orderId = state.orderId;
 
   if (!orderId) {
-    // Show MOCK orders + Blob order_doc list (real orders only)
-    const blobSummaries = filterOrderSummaries(await getAllSummaries("order_doc"));
+    // Show all orders from store + Blob order_doc list (real orders only)
+    const [storeOrders, blobSummaries] = await Promise.all([
+      getAllOrders(),
+      getAllSummaries("order_doc").then(filterOrderSummaries),
+    ]);
 
-    const mockLines = MOCK_ORDERS.map(o => {
+    const storeLines = storeOrders.map(o => {
       const itemNames = o.items.map(i => i.name).join("、");
       return `- **${o.orderId}**：${itemNames}（${STATUS_LABELS[o.status] || o.status}，¥${o.totalAmount}）`;
     });
@@ -238,7 +277,15 @@ export async function lookupOrder(state: AfterSalesStateType) {
       return `- **${s.filename}**：${s.summary.slice(0, 40)}（${STATUS_LABELS[status] || status}）`;
     });
 
-    const allLines = [...mockLines, ...blobLines].join("\n");
+    const allLines = [...storeLines, ...blobLines].join("\n");
+
+    if (!allLines.trim()) {
+      return {
+        aiResponse: "暂无订单记录。如需帮助，请提供订单号，或先在知识库导入 Demo 数据。",
+        waitingForUser: false,
+        cardEvent: null,
+      };
+    }
 
     return {
       aiResponse: `您有以下订单，请告诉我要查询哪一个：\n\n${allLines}`,
@@ -247,10 +294,10 @@ export async function lookupOrder(state: AfterSalesStateType) {
     };
   }
 
-  // Use currentOrder from state if matches, otherwise lookup from mock data
+  // Use currentOrder from state if matches, otherwise lookup from store
   let order = (state.currentOrder?.orderId === orderId) ? state.currentOrder : null;
   if (!order) {
-    order = MOCK_ORDERS.find(o => o.orderId === orderId) || null;
+    order = await getOrderById(orderId);
   }
 
   if (!order) {
@@ -264,7 +311,7 @@ export async function lookupOrder(state: AfterSalesStateType) {
     }
 
     return {
-      aiResponse: `抱歉，没有找到订单 ${orderId}。请确认订单号是否正确。您可以尝试：ORD-20250520-001、ORD-20250518-002、ORD-20250515-003`,
+      aiResponse: `抱歉，没有找到订单 ${orderId}。请确认订单号是否正确，或先通过知识库导入 Demo 数据。`,
       currentOrder: null,
       cardEvent: null,
     };
@@ -281,10 +328,13 @@ export async function lookupOrder(state: AfterSalesStateType) {
 
 export async function requestRefund(state: AfterSalesStateType) {
   if (!state.currentOrder && !state.orderId) {
-    // Show MOCK orders + Blob order_doc, marking eligibility (real orders only)
-    const blobSummaries = filterOrderSummaries(await getAllSummaries("order_doc"));
+    // Show all orders from store + Blob order_doc, marking eligibility (real orders only)
+    const [storeOrders, blobSummaries] = await Promise.all([
+      getAllOrders(),
+      getAllSummaries("order_doc").then(filterOrderSummaries),
+    ]);
 
-    const mockLines = MOCK_ORDERS.map(o => {
+    const storeLines = storeOrders.map(o => {
       const itemNames = o.items.map(i => i.name).join("、");
       const eligible = o.status === "delivered" || o.status === "shipped";
       const status = STATUS_LABELS[o.status] || o.status;
@@ -300,7 +350,10 @@ export async function requestRefund(state: AfterSalesStateType) {
       return `- **${s.filename}**：${s.summary.slice(0, 30)}...${note}`;
     });
 
-    const allLines = [...mockLines, ...blobLines].join("\n");
+    const allLines = [...storeLines, ...blobLines].join("\n");
+    if (!allLines.trim()) {
+      return { aiResponse: "暂无订单记录，无法申请退款。请先导入 Demo 数据或提供订单号。", waitingForUser: false, cardEvent: null };
+    }
     return {
       aiResponse: `请选择需要退款的订单（运输中或已签收的订单支持退款申请）：\n\n${allLines}\n\n请回复订单号即可。`,
       waitingForUser: true,
@@ -310,7 +363,7 @@ export async function requestRefund(state: AfterSalesStateType) {
 
   let order = state.currentOrder;
   if (!order && state.orderId) {
-    order = MOCK_ORDERS.find(o => o.orderId === state.orderId) || null;
+    order = await getOrderById(state.orderId);
   }
 
   if (!order) {
@@ -400,10 +453,13 @@ export async function requestRefund(state: AfterSalesStateType) {
 
 export async function requestExchange(state: AfterSalesStateType) {
   if (!state.currentOrder && !state.orderId) {
-    // Show MOCK orders + Blob order_doc, marking eligibility (real orders only)
-    const blobSummaries = filterOrderSummaries(await getAllSummaries("order_doc"));
+    // Show all orders from store + Blob order_doc, marking eligibility (real orders only)
+    const [storeOrders, blobSummaries] = await Promise.all([
+      getAllOrders(),
+      getAllSummaries("order_doc").then(filterOrderSummaries),
+    ]);
 
-    const mockLines = MOCK_ORDERS.map(o => {
+    const storeLines = storeOrders.map(o => {
       const itemNames = o.items.map(i => i.name).join("、");
       const eligible = o.status === "delivered";
       const status = STATUS_LABELS[o.status] || o.status;
@@ -419,7 +475,10 @@ export async function requestExchange(state: AfterSalesStateType) {
       return `- **${s.filename}**：${s.summary.slice(0, 30)}...${note}`;
     });
 
-    const allLines = [...mockLines, ...blobLines].join("\n");
+    const allLines = [...storeLines, ...blobLines].join("\n");
+    if (!allLines.trim()) {
+      return { aiResponse: "暂无订单记录，无法申请换货。请先导入 Demo 数据或提供订单号。", waitingForUser: false, cardEvent: null };
+    }
     return {
       aiResponse: `请选择需要换货的订单（仅已签收的订单支持换货申请）：\n\n${allLines}\n\n请回复订单号即可。`,
       waitingForUser: true,
@@ -429,7 +488,7 @@ export async function requestExchange(state: AfterSalesStateType) {
 
   let order = state.currentOrder;
   if (!order && state.orderId) {
-    order = MOCK_ORDERS.find(o => o.orderId === state.orderId) || null;
+    order = await getOrderById(state.orderId);
   }
 
   if (!order) {

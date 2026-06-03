@@ -64,6 +64,15 @@ export async function onRequest(context: any) {
   const body = request?.body ?? {};
   const { file, filename, category, text, title } = body;
 
+  // Get store (cloud-functions use context.agent?.store)
+  const store = context.agent?.store ?? context.store ?? null;
+  if (!store) {
+    return new Response(JSON.stringify({
+      error: "STORE_NOT_CONFIGURED",
+      message: "Storage is not available. Deploy to EdgeOne Makers for automatic configuration.",
+    }), { status: 503, headers: { "Content-Type": "application/json" } });
+  }
+
   // Validate category
   if (!category || !VALID_CATEGORIES.includes(category)) {
     return new Response(JSON.stringify({ error: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(", ")}` }), {
@@ -93,10 +102,8 @@ export async function onRequest(context: any) {
       let extractedText: string;
 
       if (hasText) {
-        // Inline text input
         extractedText = text;
       } else {
-        // Parse file
         extractedText = await parseDocument(Buffer.from(file, "base64"), filename);
       }
 
@@ -109,11 +116,11 @@ export async function onRequest(context: any) {
       yield sseEvent({ type: "progress", stage: "parsed", message: `解析完成，提取 ${extractedText.length} 字符` });
 
       // Step 2: Check for existing document (deduplication)
-      const existing = await findDocByFilename(category, docFilename);
+      const existing = await findDocByFilename(store, category, docFilename);
       const finalDocId = existing ? existing.docId : docId;
       if (existing) {
         logger.log(`Overwriting existing document: ${docFilename} (${existing.docId})`);
-        await removeDoc(category, existing.docId);
+        await removeDoc(store, category, existing.docId);
       }
 
       // Step 3: Generate summary
@@ -122,10 +129,10 @@ export async function onRequest(context: any) {
       const { summary, keywords } = await generateSummary(extractedText, docFilename, category);
       logger.log(`Summary generated for ${docFilename}: ${summary.slice(0, 60)}...`);
 
-      // Step 4: Save to blob store
+      // Step 4: Save to store
       yield sseEvent({ type: "progress", stage: "saving", message: "正在保存文档..." });
 
-      await saveDoc(category, finalDocId, docFilename, extractedText, summary, keywords);
+      await saveDoc(store, category, finalDocId, docFilename, extractedText, summary, keywords);
 
       // Step 5: Done
       yield sseEvent({

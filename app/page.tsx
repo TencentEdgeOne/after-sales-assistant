@@ -1,14 +1,55 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChatPanel } from "./components/chat-panel";
 import { ManagePanel } from "./components/manage-panel";
 
+interface HealthStatus {
+  ok: boolean;
+  hasAiGateway: boolean;
+  hasStore: boolean;
+  missing: string[];
+}
+
 export default function Home() {
   const [showManage, setShowManage] = useState(false);
+  const [health, setHealth] = useState<HealthStatus | null>(null);
+
+  useEffect(() => {
+    fetch("/health")
+      .then(r => r.json())
+      .then((data: HealthStatus) => setHealth(data))
+      .catch(() => {});
+  }, []);
+
+  const showWarning = health && !health.ok;
 
   return (
     <main className="h-screen flex flex-col bg-[#f7f8fa]">
+      {/* Env config warning banner */}
+      {showWarning && (
+        <div className="flex-shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center gap-2.5">
+          <span className="text-amber-500 text-sm flex-shrink-0">⚠️</span>
+          <div className="flex-1 min-w-0">
+            <span className="text-[12px] text-amber-800 font-medium">环境变量未配置，部分功能不可用。</span>
+            {!health.hasAiGateway && health.missing.length > 0 && (
+              <span className="text-[11px] text-amber-600 ml-1.5">
+                缺少：{health.missing.join("、")}
+              </span>
+            )}
+            {!health.hasStore && (
+              <span className="text-[11px] text-amber-600 ml-1.5">
+                · 知识库存储不可用（需部署到 EdgeOne Makers）
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => setHealth(h => h ? { ...h, ok: true } : h)}
+            className="flex-shrink-0 text-amber-400 hover:text-amber-600 text-sm leading-none"
+          >✕</button>
+        </div>
+      )}
+
       {/* Header */}
       <header className="flex-shrink-0 h-14 bg-white border-b border-gray-200/80 px-4 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">

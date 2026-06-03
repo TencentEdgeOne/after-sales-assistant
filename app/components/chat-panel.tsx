@@ -9,50 +9,6 @@ import { FaqCard } from "./cards/faq-card";
 
 marked.setOptions({ gfm: true, breaks: true });
 
-// ============ Onboarding Import Card ============
-
-function WelcomeImportCard({
-  onImport,
-  seeding,
-  seeded,
-}: {
-  onImport: () => void;
-  seeding: boolean;
-  seeded: boolean;
-}) {
-  if (seeded) {
-    return (
-      <div className="mt-1.5 flex items-center gap-2 text-[12px] text-green-700 bg-green-50 rounded-xl px-3 py-2 border border-green-100">
-        <span>✅</span>
-        <span>演示数据已导入！退货政策、FAQ、产品手册均已就绪，快来体验吧~</span>
-      </div>
-    );
-  }
-  return (
-    <div className="mt-1.5 bg-indigo-50/80 rounded-xl px-3.5 py-3 border border-indigo-100 space-y-2">
-      <p className="text-[12px] text-indigo-800 font-medium">💡 首次使用？一键导入演示知识库</p>
-      <p className="text-[11px] text-indigo-600">包含退货政策、常见问题 FAQ、产品手册等示例文档，帮你快速上手完整功能</p>
-      <button
-        onClick={onImport}
-        disabled={seeding}
-        className="text-[12px] h-7 px-3.5 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
-      >
-        {seeding ? (
-          <>
-            <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            导入中...
-          </>
-        ) : (
-          <>🚀 一键导入演示数据</>
-        )}
-      </button>
-    </div>
-  );
-}
-
 // ============ Types ============
 
 interface CardData {
@@ -85,8 +41,7 @@ function MarkdownBlock({ content }: { content: string }) {
 export function ChatPanel() {
   const [messages, setMessages] = useState<Message[]>([{
     role: "assistant",
-    content: "您好！我是售后客服助手，有什么可以帮您？",
-    cards: [{ type: "welcome_import", data: {} }],
+    content: "您好！我是售后客服助手，有什么可以帮您？\n\n如果是首次使用，请先打开右上角「知识库」一键导入演示数据。",
     suggestions: [
       { id: "faq", emoji: "📋", title: "退货政策是什么？" },
       { id: "order", emoji: "🔍", title: "查询订单状态" },
@@ -97,47 +52,12 @@ export function ChatPanel() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState("");
-  const [seedingDemo, setSeedingDemo] = useState(false);
-  const [demoSeeded, setDemoSeeded] = useState(false);
   // pendingAction: carries intent context across turns when waiting for user to pick an order
   const [pendingAction, setPendingAction] = useState<{ intent: string } | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isComposingRef = useRef(false);
   const conversationId = useMemo(() => crypto.randomUUID(), []);
-
-  const handleSeedDemo = useCallback(async () => {
-    if (seedingDemo) return;
-    setSeedingDemo(true);
-    try {
-      const res = await fetch("/seed-demo", { method: "POST", headers: { "Content-Type": "application/json" } });
-      if (!res.ok) throw new Error("failed");
-      const reader = res.body?.getReader();
-      if (reader) {
-        const decoder = new TextDecoder();
-        let buffer = "";
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-        }
-      }
-      setDemoSeeded(true);
-      setMessages(prev => [...prev, {
-        role: "assistant",
-        content: "演示数据已成功导入！知识库现已包含退货政策、常见问题 FAQ、产品手册等内容。\n\n您可以直接点击下方按钮体验，或输入任何售后问题：",
-        suggestions: [
-          { id: "faq", emoji: "📋", title: "退货政策是什么？" },
-          { id: "order", emoji: "🔍", title: "查询订单状态" },
-          { id: "refund", emoji: "💰", title: "我要申请退款" },
-        ],
-      }]);
-    } catch {
-      // silent fail — let user retry
-    } finally {
-      setSeedingDemo(false);
-    }
-  }, [seedingDemo]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -316,7 +236,6 @@ export function ChatPanel() {
 
   const renderCard = (card: CardData, idx: number) => {
     switch (card.type) {
-      case "welcome_import": return <WelcomeImportCard key={idx} onImport={handleSeedDemo} seeding={seedingDemo} seeded={demoSeeded} />;
       case "order_detail": return <OrderCard key={idx} order={card.data.order} />;
       case "refund_progress": return <RefundCard key={idx} order={card.data.order} />;
       case "exchange_confirm": return <ExchangeCard key={idx} order={card.data.order} />;

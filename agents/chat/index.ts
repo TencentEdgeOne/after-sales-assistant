@@ -6,7 +6,7 @@
  */
 import { createLogger, createSSEResponse, sseEvent, saveOrder, getOrder } from "../_shared";
 import { buildAfterSalesGraph } from "../_graph/builder";
-import { seedOrders } from "../_data/orders";
+import { setGlobalStore } from "../../lib/doc-store";
 import type { AfterSalesStateType } from "../_graph/state";
 
 const logger = createLogger("chat");
@@ -50,8 +50,8 @@ async function* streamAfterSales(
 ): AsyncGenerator<string> {
   const conversationId = context.conversation_id || "default";
 
-  // Seed mock orders on first use
-  await seedOrders(context);
+  // Make store available to graph nodes (nodes can't receive context directly)
+  setGlobalStore(context.store);
 
   const graph = buildAfterSalesGraph();
 

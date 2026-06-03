@@ -1,5 +1,17 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "cloudFunctions": {
+    "nodejs": {
+      "includeFiles": []
+    }
+  },
+  "agents": {
+    "timeout": 900,
+    "framework": "langgraph",
+    "sandbox": {
+      "timeout": 900
+    }
+  }
 }
