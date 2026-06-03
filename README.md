@@ -6,7 +6,7 @@ AI-powered after-sales customer service agent with order management, knowledge-b
 
 **Framework:** LangGraph · **Category:** Chat · **Language:** TypeScript
 
-[![Deploy to EdgeOne Makers](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.cloud.tencent.com/edgeone/makers/new?template=after-sales-assistant&from=within&fromAgent=1&agentLang=typescript)
+[![Deploy to EdgeOne Makers](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.tencentcloud.com/edgeone/makers/new?template=after-sales-assistant&from=within&fromAgent=1&agentLang=typescript)
 
 <!-- TODO: confirm -->
 ![preview](./assets/preview.png)
@@ -27,7 +27,6 @@ This template provides an end-to-end after-sales assistant that handles refunds,
 |----------|----------|-------------|
 | `AI_GATEWAY_API_KEY` | Yes | Model gateway API key. Use your Makers Models API Key, or any OpenAI-compatible provider key. |
 | `AI_GATEWAY_BASE_URL` | Yes | Gateway base URL. For Makers Models, use `https://ai-gateway.edgeone.link/v1`. |
-| `AI_GATEWAY_MODEL` | No | Model ID. Defaults to `@makers/deepseek-v4-flash`. |
 | `PROJECT_ID` | No | Pages project ID for Blob storage (knowledge base documents). |
 | `EDGEONE_PAGES_API_TOKEN` | No | API token for Blob storage. |
 

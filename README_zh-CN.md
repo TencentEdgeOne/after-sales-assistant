@@ -6,7 +6,7 @@
 
 **Framework:** LangGraph · **Category:** Chat · **Language:** TypeScript
 
-[![Deploy to EdgeOne Makers](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.tencentcloud.com/edgeone/makers/new?template=after-sales-assistant&from=within&fromAgent=1&agentLang=typescript)
+[![部署到 EdgeOne Makers](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.cloud.tencent.com/edgeone/makers/new?template=after-sales-assistant&from=within&fromAgent=1&agentLang=typescript)
 
 <!-- TODO: confirm -->
 ![preview](./assets/preview.png)
@@ -27,7 +27,6 @@
 |----------|----------|-------------|
 | `AI_GATEWAY_API_KEY` | 是 | 模型网关 API Key。使用 Makers Models 的 API Key，或任何兼容 OpenAI 协议的提供商 Key。 |
 | `AI_GATEWAY_BASE_URL` | 是 | 网关基础地址。使用 Makers Models 时填写 `https://ai-gateway.edgeone.link/v1`。 |
-| `AI_GATEWAY_MODEL` | 否 | 模型 ID。默认为 `@makers/deepseek-v4-flash`。 |
 | `PROJECT_ID` | 否 | Pages 项目 ID，用于 Blob 存储（知识库文档）。 |
 | `EDGEONE_PAGES_API_TOKEN` | 否 | Blob 存储的 API Token。 |
 
