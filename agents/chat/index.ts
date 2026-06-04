@@ -147,7 +147,7 @@ export async function onRequest(context: any) {
   const body = request?.body ?? {};
   const { message, pendingAction } = body;
   const locale = getLocale(body);
-
+  console.log("context ==>", context.conversation_id);
   if (!message) {
     return new Response(JSON.stringify({ error: "Missing message" }), {
       status: 400,

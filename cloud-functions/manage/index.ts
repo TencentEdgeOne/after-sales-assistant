@@ -8,7 +8,7 @@
  * - action: "edit" + docId + category + content + title → update content, regenerate summary
  */
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
-import { createLogger, createModel } from "../../agents/_shared";
+import { createModel } from "../../agents/_shared";
 import {
   getAllSummaries,
   getDocContent,
@@ -17,7 +17,7 @@ import {
   type DocCategory,
 } from "../../lib/doc-store";
 
-const logger = createLogger("manage");
+
 
 const VALID_CATEGORIES: DocCategory[] = ["faq", "policy", "product", "order_doc"];
 
@@ -111,6 +111,7 @@ async function regenerateSummary(
 export async function onRequest(context: any) {
   const { request } = context;
   const body = request?.body ?? {};
+  console.log("context ===>", context.agent);
   const { action, category, docId, content, title } = body;
 
   // Get store (cloud-functions use context.agent?.store)
@@ -185,7 +186,7 @@ export async function onRequest(context: any) {
         if (!deleted) {
           return jsonResponse({ error: `Failed to delete document: ${category}/${docId}` }, 404);
         }
-        logger.log(`Deleted document: ${category}/${docId}`);
+        console.log(`[manage] Deleted document: ${category}/${docId}`);
         return jsonResponse({ success: true, docId, category });
       }
 
@@ -202,12 +203,12 @@ export async function onRequest(context: any) {
 
         await removeDoc(store, category, docId);
 
-        logger.log(`Regenerating summary for ${category}/${docId}...`);
+        console.log(`[manage] Regenerating summary for ${category}/${docId}...`);
         const { summary, keywords } = await regenerateSummary(content, docFilename, category);
 
         await saveDoc(store, category as DocCategory, docId, docFilename, content, summary, keywords);
 
-        logger.log(`Updated document: ${category}/${docId}`);
+        console.log(`[manage] Updated document: ${category}/${docId}`);
         return jsonResponse({
           success: true,
           docId,
@@ -226,7 +227,7 @@ export async function onRequest(context: any) {
         const MANIFEST_NS = ["aftersales", "orders_manifest"];
         const idx = await kv.get(MANIFEST_NS, "all").catch(() => null);
         const ids: string[] = idx?.value?.ids || [];
-        logger.log(`list_orders: manifest has ${ids.length} ids`);
+        console.log(`[manage] list_orders: manifest has ${ids.length} ids`);
         const orders = await Promise.all(
           ids.map(async (id: string) => {
             const item = await kv.get(ORDERS_NS, id).catch(() => null);
@@ -240,7 +241,7 @@ export async function onRequest(context: any) {
         return jsonResponse({ error: `Unknown action: ${action}. Supported: list, get, delete, edit` }, 400);
     }
   } catch (e) {
-    logger.error(`Manage error (${action}):`, (e as Error).message);
+    console.error(`[manage] Manage error (${action}):`, (e as Error).message);
     return jsonResponse({ error: (e as Error).message }, 500);
   }
 }

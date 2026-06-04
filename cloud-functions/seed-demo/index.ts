@@ -3,13 +3,13 @@
  * One-click import of sample after-sales documents.
  * Locale-aware: imports DEMO_DOCS_EN/ORDERS_EN when body.locale === "en".
  */
-import { createLogger, createModel, createSSEResponse, sseEvent } from "../../agents/_shared";
+import { createModel, createSSEResponse, sseEvent } from "../../agents/_shared";
 import { getDemoDocs, getDemoOrders } from "../../agents/_data/demo-docs";
 import { saveDoc } from "../../lib/doc-store";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { t, getLocale, type Locale } from "../../agents/_i18n";
 
-const logger = createLogger("seed-demo");
+
 
 async function generateSummary(title: string, content: string, locale: Locale): Promise<{ summary: string; keywords: string[] }> {
   const model = createModel();
@@ -65,7 +65,7 @@ async function* streamSeedDemo(store: any, locale: Locale): AsyncGenerator<strin
       yield sseEvent({ type: "doc_imported", docId, title: doc.title, category: doc.category, summary });
     } catch (e) {
       failed++;
-      logger.error(`Failed to import ${doc.title}:`, (e as Error).message);
+      console.error(`[seed-demo] Failed to import ${doc.title}:`, (e as Error).message);
       yield sseEvent({ type: "doc_error", title: doc.title, error: (e as Error).message });
     }
   }
@@ -99,18 +99,18 @@ async function* streamSeedDemo(store: any, locale: Locale): AsyncGenerator<strin
       try {
         await kv.put(ORDERS_MANIFEST_NS, "all", { ids: allIds });
       } catch (e) {
-        logger.error("Failed to update orders manifest:", (e as Error).message);
+        console.error("[seed-demo] Failed to update orders manifest:", (e as Error).message);
       }
 
       imported++;
       yield sseEvent({ type: "order_imported", title: order.orderId, category: "order" });
     } catch (e) {
       failed++;
-      logger.error(`Failed to import order ${order.orderId}:`, (e as Error).message);
+      console.error(`[seed-demo] Failed to import order ${order.orderId}:`, (e as Error).message);
     }
   }
 
-  logger.log(`[${locale}] Orders imported: ${importedOrderIds.length}`);
+  console.log(`[seed-demo] [${locale}] Orders imported: ${importedOrderIds.length}`);
 
   if (imported === 0 && failed > 0) {
     yield sseEvent({ type: "error_message", content: t(locale, "seed.failure", { failed }) });
@@ -125,6 +125,8 @@ async function* streamSeedDemo(store: any, locale: Locale): AsyncGenerator<strin
 }
 
 export async function onRequest(context: any) {
+  console.log("context ===>", context.agent);
+
   if (!process.env.AI_GATEWAY_API_KEY || !process.env.AI_GATEWAY_BASE_URL) {
     return new Response(JSON.stringify({ error: "AI Gateway not configured" }), {
       status: 503,
@@ -142,7 +144,7 @@ export async function onRequest(context: any) {
 
   const body = context.request?.body ?? {};
   const locale = getLocale(body);
-  logger.log(`Seeding demo documents (locale=${locale})...`);
+  console.log(`[seed-demo] Seeding demo documents (locale=${locale})...`);
   const signal = context.request?.signal as AbortSignal | undefined;
   const generator = streamSeedDemo(store, locale);
   return createSSEResponse(generator, signal);
