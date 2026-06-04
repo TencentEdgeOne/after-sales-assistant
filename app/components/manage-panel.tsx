@@ -135,6 +135,9 @@ export function ManagePanel({ onClose }: { onClose: () => void }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tabCycleRef = useRef(0);
   const loadDocsAbortRef = useRef<AbortController | null>(null);
+  // /seed-demo and /upload are now agent endpoints — they require makers-conversation-id header.
+  // /manage is still a cloud-function so it doesn't need this header (and we keep it unchanged).
+  const conversationId = useMemo(() => crypto.randomUUID(), []);
 
   const loadDocs = useCallback(async () => {
     loadDocsAbortRef.current?.abort();
@@ -224,7 +227,10 @@ export function ManagePanel({ onClose }: { onClose: () => void }) {
       try {
         const res = await fetch("/upload", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "makers-conversation-id": conversationId,
+          },
           body: JSON.stringify({ file: base64, filename: file.name, category: uploadCategory, locale }),
         });
         if (!res.ok) throw new Error("Upload failed");
@@ -263,7 +269,10 @@ export function ManagePanel({ onClose }: { onClose: () => void }) {
     try {
       const res = await fetch("/upload", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "makers-conversation-id": conversationId,
+        },
         body: JSON.stringify({ text: formContent, title: formTitle, category: formCategory, locale }),
       });
       if (!res.ok) throw new Error("Save failed");
@@ -308,7 +317,10 @@ export function ManagePanel({ onClose }: { onClose: () => void }) {
     try {
       const res = await fetch("/seed-demo", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "makers-conversation-id": conversationId,
+        },
         body: JSON.stringify({ locale }),
       });
       if (!res.ok) throw new Error("Seed failed");
