@@ -97,7 +97,7 @@ export function ChatPanel() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "pages-agent-conversation-id": conversationId,
+          "makers-conversation-id": conversationId,
         },
         body: JSON.stringify({
           message: userMessage,
@@ -230,7 +230,7 @@ export function ChatPanel() {
     setIsLoading(false);
     fetch("/stop", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "pages-agent-conversation-id": conversationId },
+      headers: { "Content-Type": "application/json", "makers-conversation-id": conversationId },
       body: JSON.stringify({ conversation_id: conversationId }),
     }).catch(() => {});
   }, [conversationId]);
