@@ -16,6 +16,8 @@ export default function Home() {
   const { t, locale, setLocale } = useT();
   const [showManage, setShowManage] = useState(false);
   const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/health")
@@ -26,8 +28,66 @@ export default function Home() {
 
   const showWarning = health && !health.ok;
 
+  const handleTest = async () => {
+    if (testing) return;
+    setTesting(true);
+    setTestResult(null);
+    const startedAt = Date.now();
+    try {
+      const res = await fetch("/test", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "makers-conversation-id": crypto.randomUUID(),
+        },
+        body: JSON.stringify({ message: "Reply with: hello world" }),
+      });
+      const elapsed = Date.now() - startedAt;
+      let body: any;
+      let raw = "";
+      try {
+        body = await res.json();
+      } catch {
+        try { raw = await res.text(); } catch {}
+      }
+      const status = `HTTP ${res.status} (${elapsed}ms)`;
+      const summary = body
+        ? JSON.stringify(body, null, 2)
+        : (raw ? raw.slice(0, 500) : "(empty body)");
+      setTestResult(`${status}\n\n${summary}`);
+    } catch (e: any) {
+      setTestResult(`Network error: ${e?.message || String(e)}`);
+    } finally {
+      setTesting(false);
+    }
+  };
+
   return (
     <main className="h-screen flex flex-col bg-[#f7f8fa]">
+      {/* Test result modal */}
+      {testResult !== null && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={() => setTestResult(null)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 flex-shrink-0">
+              <span className="text-sm font-semibold text-gray-800">🧪 /test 接口结果</span>
+              <button
+                onClick={() => setTestResult(null)}
+                className="w-7 h-7 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors text-lg leading-none"
+              >&times;</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <pre className="text-[12px] text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">{testResult}</pre>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Env config warning banner */}
       {showWarning && (
         <div className="flex-shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center gap-2.5">
@@ -64,6 +124,14 @@ export default function Home() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleTest}
+            disabled={testing}
+            className="text-[11px] px-2.5 py-1 rounded-md border border-amber-200 text-amber-600 bg-amber-50/50 font-medium hover:bg-amber-100 disabled:opacity-50 transition-colors"
+            title="Call /test endpoint (minimal LLM ping, no graph / no SSE)"
+          >
+            {testing ? "Testing..." : "🧪 Test"}
+          </button>
           <button
             onClick={() => setLocale(locale === "en" ? "zh" : "en")}
             className="text-[11px] px-2.5 py-1 rounded-md border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition-colors"
