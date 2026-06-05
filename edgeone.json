@@ -8,10 +8,10 @@
     }
   },
   "agents": {
-    "timeout": 900,
-    "framework": "langgraph",
-    "sandbox": {
-      "timeout": 900
-    }
+    "externalNodeModules": [
+      "@langchain/openai",
+      "@langchain/core",
+      "@langchain/langgraph"
+    ]
   }
 }
