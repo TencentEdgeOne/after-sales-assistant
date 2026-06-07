@@ -75,9 +75,10 @@ function jsonResponse(data: any, status = 200) {
 async function regenerateSummary(
   content: string,
   filename: string,
-  category: string
+  category: string,
+  env: Record<string, string | undefined>
 ): Promise<{ summary: string; keywords: string[] }> {
-  const model = createModel();
+  const model = createModel(env);
   const truncated = content.length > 8000 ? content.slice(0, 8000) + "\n...[truncated]" : content;
 
   const response = await model.invoke([
@@ -110,8 +111,8 @@ async function regenerateSummary(
 
 export async function onRequest(context: any) {
   const { request } = context;
+  const env = context.env ?? {};
   const body = request?.body ?? {};
-  console.log("context ===>", context.agent);
   const { action, category, docId, content, title } = body;
 
   // Get store (cloud-functions use context.agent?.store)
@@ -204,7 +205,7 @@ export async function onRequest(context: any) {
         await removeDoc(store, category, docId);
 
         console.log(`[manage] Regenerating summary for ${category}/${docId}...`);
-        const { summary, keywords } = await regenerateSummary(content, docFilename, category);
+        const { summary, keywords } = await regenerateSummary(content, docFilename, category, env);
 
         await saveDoc(store, category as DocCategory, docId, docFilename, content, summary, keywords);
 

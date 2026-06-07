@@ -56,7 +56,7 @@ async function* streamAfterSales(
 
   setGlobalStore(context.store);
 
-  const graph = buildAfterSalesGraph();
+  const graph = buildAfterSalesGraph(context.env ?? {});
   const priorState = await loadState(context, conversationId);
 
   let preloadedOrder = priorState?.currentOrder || null;
@@ -147,7 +147,6 @@ export async function onRequest(context: any) {
   const body = request?.body ?? {};
   const { message, pendingAction } = body;
   const locale = getLocale(body);
-  console.log("context ==>", context.conversation_id);
   if (!message) {
     return new Response(JSON.stringify({ error: "Missing message" }), {
       status: 400,
@@ -155,7 +154,8 @@ export async function onRequest(context: any) {
     });
   }
 
-  if (!process.env.AI_GATEWAY_API_KEY || !process.env.AI_GATEWAY_BASE_URL) {
+  const env = context.env ?? {};
+  if (!env.AI_GATEWAY_API_KEY || !env.AI_GATEWAY_BASE_URL) {
     return new Response(JSON.stringify({
       error: "Service not configured. Please set AI_GATEWAY_API_KEY and AI_GATEWAY_BASE_URL environment variables.",
     }), { status: 503, headers: { "Content-Type": "application/json" } });

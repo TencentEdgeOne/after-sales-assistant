@@ -1,8 +1,17 @@
 /**
  * Stop active run — abort the running generation for this conversation.
+ *
+ * IMPORTANT: the stop request MUST NOT carry the same `makers-conversation-id`
+ * header as the chat request, otherwise EdgeOne sticky-routes /stop to the busy
+ * chat instance and abortActiveRun() never reaches the runner. The target
+ * conversation_id is therefore read from the request body, not the header.
  */
 export async function onRequest(context: any) {
-  const conversationId = context.conversation_id;
+  const body = (context.request?.body ?? {}) as Record<string, unknown>;
+  const conversationId =
+    (body.conversation_id as string | undefined) ??
+    (body.conversationId as string | undefined) ??
+    context.conversation_id;
 
   if (!conversationId) {
     return new Response(JSON.stringify({ error: "Missing conversation_id" }), {

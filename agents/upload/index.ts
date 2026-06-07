@@ -23,13 +23,16 @@ const VALID_CATEGORIES: DocCategory[] = ["faq", "policy", "product", "order_doc"
 /**
  * Generate a summary and keywords for a document using AI Gateway.
  */
+type AgentEnv = Record<string, string | undefined>;
+
 async function generateSummary(
   content: string,
   filename: string,
   category: string,
-  locale: Locale
+  locale: Locale,
+  env: AgentEnv
 ): Promise<{ summary: string; keywords: string[] }> {
-  const model = createModel();
+  const model = createModel(env);
 
   const truncated = content.length > 8000 ? content.slice(0, 8000) + "\n...[truncated]" : content;
 
@@ -80,6 +83,7 @@ Output STRICT JSON only (no other text):
 
 export async function onRequest(context: any) {
   const { request } = context;
+  const env = context.env ?? {};
   const body = request?.body ?? {};
   const { file, filename, category, text, title } = body;
   const locale = getLocale(body);
@@ -144,7 +148,7 @@ export async function onRequest(context: any) {
       // Step 3: Generate summary
       yield sseEvent({ type: "progress", stage: "summarizing", message: t(locale, "upload.summarizing") });
 
-      const { summary, keywords } = await generateSummary(extractedText, docFilename, category, locale);
+      const { summary, keywords } = await generateSummary(extractedText, docFilename, category, locale, env);
       logger.log(`Summary generated for ${docFilename}: ${summary.slice(0, 60)}...`);
 
       // Step 4: Save to store

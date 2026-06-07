@@ -14,8 +14,10 @@ import { t, getLocale, type Locale } from "../_i18n";
 
 const logger = createLogger("seed-demo");
 
-async function generateSummary(title: string, content: string, locale: Locale): Promise<{ summary: string; keywords: string[] }> {
-  const model = createModel();
+type AgentEnv = Record<string, string | undefined>;
+
+async function generateSummary(title: string, content: string, locale: Locale, env: AgentEnv): Promise<{ summary: string; keywords: string[] }> {
+  const model = createModel(env);
   const sysPrompt = locale === "en"
     ? `Generate a short summary (1-2 sentences) and 5 keywords for the document. Return JSON: {"summary":"...","keywords":["k1","k2","k3","k4","k5"]}`
     : `为以下文档生成简短摘要（1-2句）和5个关键词。返回JSON：{"summary":"...","keywords":["k1","k2","k3","k4","k5"]}`;
@@ -34,7 +36,7 @@ async function generateSummary(title: string, content: string, locale: Locale): 
   return { summary: content.slice(0, 100), keywords: [title] };
 }
 
-async function* streamSeedDemo(store: any, locale: Locale): AsyncGenerator<string> {
+async function* streamSeedDemo(store: any, locale: Locale, env: AgentEnv): AsyncGenerator<string> {
   const kv = store?.langgraphStore ?? store;
   const DEMO_DOCS = getDemoDocs(locale);
   const DEMO_ORDERS = getDemoOrders(locale);
@@ -62,7 +64,7 @@ async function* streamSeedDemo(store: any, locale: Locale): AsyncGenerator<strin
     });
 
     try {
-      const { summary, keywords } = await generateSummary(doc.title, doc.content, locale);
+      const { summary, keywords } = await generateSummary(doc.title, doc.content, locale, env);
       await saveDoc(store, doc.category, docId, doc.title, doc.content, summary, keywords);
       imported++;
       yield sseEvent({ type: "doc_imported", docId, title: doc.title, category: doc.category, summary });
@@ -128,7 +130,8 @@ async function* streamSeedDemo(store: any, locale: Locale): AsyncGenerator<strin
 }
 
 export async function onRequest(context: any) {
-  if (!process.env.AI_GATEWAY_API_KEY || !process.env.AI_GATEWAY_BASE_URL) {
+  const env = context.env ?? {};
+  if (!env.AI_GATEWAY_API_KEY || !env.AI_GATEWAY_BASE_URL) {
     return new Response(JSON.stringify({ error: "AI Gateway not configured" }), {
       status: 503,
       headers: { "Content-Type": "application/json" },
@@ -147,6 +150,6 @@ export async function onRequest(context: any) {
   const locale = getLocale(body);
   logger.log(`Seeding demo documents (locale=${locale})...`);
   const signal = context.request?.signal as AbortSignal | undefined;
-  const generator = streamSeedDemo(store, locale);
+  const generator = streamSeedDemo(store, locale, env);
   return createSSEResponse(generator, signal);
 }

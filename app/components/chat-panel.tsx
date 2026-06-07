@@ -62,7 +62,19 @@ export function ChatPanel() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isComposingRef = useRef(false);
-  const conversationId = useMemo(() => crypto.randomUUID(), []);
+  const conversationId = useMemo(() => {
+    const KEY = "after-sales-conversation-id";
+    try {
+      let id = localStorage.getItem(KEY);
+      if (!id) {
+        id = crypto.randomUUID();
+        localStorage.setItem(KEY, id);
+      }
+      return id;
+    } catch {
+      return crypto.randomUUID();
+    }
+  }, []);
 
   // When locale changes, refresh ONLY the initial welcome message (preserve conversation history)
   useEffect(() => {
@@ -230,7 +242,9 @@ export function ChatPanel() {
     setIsLoading(false);
     fetch("/stop", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "makers-conversation-id": conversationId },
+      // NOTE: do NOT send makers-conversation-id header here — it would
+      // sticky-route /stop to the busy chat instance and abort would never fire.
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ conversation_id: conversationId }),
     }).catch(() => {});
   }, [conversationId]);

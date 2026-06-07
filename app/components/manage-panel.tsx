@@ -137,7 +137,19 @@ export function ManagePanel({ onClose }: { onClose: () => void }) {
   const loadDocsAbortRef = useRef<AbortController | null>(null);
   // /seed-demo and /upload are now agent endpoints — they require makers-conversation-id header.
   // /manage is still a cloud-function so it doesn't need this header (and we keep it unchanged).
-  const conversationId = useMemo(() => crypto.randomUUID(), []);
+  const conversationId = useMemo(() => {
+    const KEY = "after-sales-conversation-id";
+    try {
+      let id = localStorage.getItem(KEY);
+      if (!id) {
+        id = crypto.randomUUID();
+        localStorage.setItem(KEY, id);
+      }
+      return id;
+    } catch {
+      return crypto.randomUUID();
+    }
+  }, []);
 
   const loadDocs = useCallback(async () => {
     loadDocsAbortRef.current?.abort();

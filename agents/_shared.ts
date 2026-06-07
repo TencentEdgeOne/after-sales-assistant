@@ -5,20 +5,33 @@ import { ChatOpenAI } from "@langchain/openai";
 
 // ─── Model ───
 
-let cachedModel: ChatOpenAI | null = null;
+type AgentEnv = Record<string, string | undefined>;
 
-export function createModel(): ChatOpenAI {
-  if (cachedModel) return cachedModel;
-  cachedModel = new ChatOpenAI({
-    model: process.env.AI_MODEL || "@makers/deepseek-v4-flash",
-    apiKey: process.env.AI_GATEWAY_API_KEY!,
+// Cache models by credential fingerprint (baseURL::apiKey). No module-level
+// mutable env state — env is always passed in per request, so concurrent
+// requests never clobber each other.
+const _modelCache = new Map<string, ChatOpenAI>();
+
+export function createModel(env: AgentEnv): ChatOpenAI {
+  const apiKey = env.AI_GATEWAY_API_KEY;
+  const baseURL = env.AI_GATEWAY_BASE_URL;
+  const model = env.AI_MODEL || "@makers/deepseek-v4-flash";
+  const cacheKey = `${baseURL ?? ""}::${apiKey ?? ""}::${model}`;
+
+  let cached = _modelCache.get(cacheKey);
+  if (cached) return cached;
+
+  cached = new ChatOpenAI({
+    model,
+    apiKey: apiKey!,
     configuration: {
-      baseURL: process.env.AI_GATEWAY_BASE_URL!,
+      baseURL: baseURL!,
       defaultHeaders: { "X-Gateway-Quota-Bypass": "true" },
     },
     timeout: 300_000,
   });
-  return cachedModel;
+  _modelCache.set(cacheKey, cached);
+  return cached;
 }
 
 // ─── Logger ───

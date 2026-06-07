@@ -5,6 +5,9 @@
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { createModel, createLogger } from "../_shared";
 import type { AfterSalesStateType } from "./state";
+
+/** AI Gateway env, threaded from context.env through the graph builder. */
+type AgentEnv = Record<string, string | undefined>;
 import { getAllSummaries, getDocContent, saveDoc, getGlobalStore } from "../../lib/doc-store";
 import type { Order } from "../_shared";
 import { t, statusLabel, languageDirective, type Locale } from "../_i18n";
@@ -97,7 +100,7 @@ function detectStatusFromText(text: string): string {
 
 // ─── Intent Recognition ───
 
-export async function intentRecognition(state: AfterSalesStateType) {
+export async function intentRecognition(state: AfterSalesStateType, env: AgentEnv) {
   const ORDER_ID_RE = /ORD-\d{8}-\d{3}/i;
   if (
     state.waitingForUser &&
@@ -108,7 +111,7 @@ export async function intentRecognition(state: AfterSalesStateType) {
     logger.log(`Context carry-forward: intent=${state.intent}, orderId=${orderId}`);
     return { intent: state.intent, orderId, waitingForUser: false };
   }
-  const model = createModel();
+  const model = createModel(env);
   // Intent prompt stays in Chinese — returns fixed JSON schema, LLM understands EN input fine
   const response = await model.invoke([
     new SystemMessage(`你是一个售后客服意图分类器。根据用户消息（无论中文还是英文）判断意图，输出 JSON：
@@ -142,7 +145,7 @@ export async function intentRecognition(state: AfterSalesStateType) {
 
 // ─── FAQ Search (Knowledge Base) ───
 
-export async function faqSearch(state: AfterSalesStateType) {
+export async function faqSearch(state: AfterSalesStateType, env: AgentEnv) {
   const locale = (state.locale || "zh") as Locale;
   const summaries = await getAllSummaries();
   logger.log(`Knowledge base has ${summaries.length} documents`);
@@ -155,7 +158,7 @@ export async function faqSearch(state: AfterSalesStateType) {
     };
   }
 
-  const model = createModel();
+  const model = createModel(env);
   const summaryList = summaries.map((s, i) => `[${i}] 【${s.category}】${s.filename}: ${s.summary} (keywords: ${s.keywords.join(", ")})`).join("\n");
 
   // Routing prompt — output is fixed JSON schema, language doesn't matter
@@ -571,9 +574,9 @@ export async function requestExchange(state: AfterSalesStateType) {
 
 // ─── General Chat ───
 
-export async function generalChat(state: AfterSalesStateType) {
+export async function generalChat(state: AfterSalesStateType, env: AgentEnv) {
   const locale = (state.locale || "zh") as Locale;
-  const model = createModel();
+  const model = createModel(env);
   const response = await model.invoke([
     new SystemMessage(`你是一个友好的售后客服助手。可以帮助用户：
 - 查询订单状态（需要订单号）

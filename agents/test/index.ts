@@ -15,16 +15,17 @@ import { ChatOpenAI } from "@langchain/openai";
 
 export async function onRequest(context: any) {
   const startedAt = Date.now();
+  const env = context.env ?? {};
   const meta: Record<string, any> = {
-    hasAiGatewayKey: !!process.env.AI_GATEWAY_API_KEY,
-    hasAiGatewayBase: !!process.env.AI_GATEWAY_BASE_URL,
-    aiModel: process.env.AI_MODEL || "@makers/deepseek-v4-flash",
+    hasAiGatewayKey: !!env.AI_GATEWAY_API_KEY,
+    hasAiGatewayBase: !!env.AI_GATEWAY_BASE_URL,
+    aiModel: env.AI_MODEL || "@makers/deepseek-v4-flash",
     hasContextStore: !!context?.store,
     hasContextRequest: !!context?.request,
     nodeVersion: typeof process !== "undefined" ? process.version : "unknown",
   };
 
-  if (!process.env.AI_GATEWAY_API_KEY || !process.env.AI_GATEWAY_BASE_URL) {
+  if (!env.AI_GATEWAY_API_KEY || !env.AI_GATEWAY_BASE_URL) {
     return new Response(JSON.stringify({
       ok: false,
       error: "AI_GATEWAY_API_KEY or AI_GATEWAY_BASE_URL not configured",
@@ -39,10 +40,10 @@ export async function onRequest(context: any) {
 
   try {
     const model = new ChatOpenAI({
-      model: process.env.AI_MODEL || "@makers/deepseek-v4-flash",
-      apiKey: process.env.AI_GATEWAY_API_KEY!,
+      model: env.AI_MODEL || "@makers/deepseek-v4-flash",
+      apiKey: env.AI_GATEWAY_API_KEY!,
       configuration: {
-        baseURL: process.env.AI_GATEWAY_BASE_URL!,
+        baseURL: env.AI_GATEWAY_BASE_URL!,
       },
       timeout: 60_000,
     });
