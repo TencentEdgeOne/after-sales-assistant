@@ -4,7 +4,8 @@
 export async function onRequest(context: any) {
   const env = context.env ?? {};
   const hasAiGateway = !!(env.AI_GATEWAY_API_KEY && env.AI_GATEWAY_BASE_URL);
-  const store = context.agent?.store ?? context.store ?? null;
+  // cloud-function 入口：只能拿 context.agent.store（runtime 不会注入 context.store）。
+  const store = context.agent?.store ?? null;
   const hasStore = !!store;
 
   const missing: string[] = [];

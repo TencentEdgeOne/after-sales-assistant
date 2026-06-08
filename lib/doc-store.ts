@@ -1,7 +1,9 @@
 /**
  * Document Store — Multi-category storage for after-sales knowledge base.
  *
- * Uses context.agent.store.langgraphStore (proper KV store).
+ * Uses context.store.langgraphStore (proper KV store).
+ * 仅在 agent 端点（agents/<name>/index.ts）下调用——cloud-function 的
+ * context.agent.store 被 runtime 剥离了 langgraphStore，不能用本模块。
  *
  * Storage layout (single global manifest, mirrors orders.ts pattern):
  *   namespace: ["kb", "doc", category]   key: docId   → DocRecord (full record incl content)
@@ -58,7 +60,7 @@ interface DocRecord extends DocSummary {
 // ─── LangGraph Store helpers ───
 
 function getLanggraphStore(store: any): any {
-  return store?.langgraphStore ?? store;
+  return store.langgraphStore;
 }
 
 function docNamespace(category: string): string[] {

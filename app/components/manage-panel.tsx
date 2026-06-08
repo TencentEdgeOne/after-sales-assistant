@@ -162,7 +162,10 @@ export function ManagePanel({ onClose }: { onClose: () => void }) {
       if (activeCategory !== "all") body.category = activeCategory;
       const res = await fetch("/manage", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "makers-conversation-id": conversationId,
+        },
         body: JSON.stringify(body),
         signal: ac.signal,
       });
@@ -187,7 +190,10 @@ export function ManagePanel({ onClose }: { onClose: () => void }) {
     try {
       const res = await fetch("/manage", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "makers-conversation-id": conversationId,
+        },
         body: JSON.stringify({ action: "list_orders", locale }),
       });
       if (res.ok) {
@@ -206,7 +212,10 @@ export function ManagePanel({ onClose }: { onClose: () => void }) {
     try {
       const res = await fetch("/manage", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "makers-conversation-id": conversationId,
+        },
         body: JSON.stringify({ action: "get", docId, category, locale }),
       });
       if (res.ok) {
@@ -221,7 +230,10 @@ export function ManagePanel({ onClose }: { onClose: () => void }) {
     try {
       await fetch("/manage", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "makers-conversation-id": conversationId,
+        },
         body: JSON.stringify({ action: "delete", docId, category, locale }),
       });
       setDocs(prev => prev.filter(d => d.docId !== docId));

@@ -23,7 +23,7 @@ async function getAllOrders(): Promise<Order[]> {
   try {
     const store = getGlobalStore();
     if (!store) return [];
-    const kv = store?.langgraphStore ?? store;
+    const kv = store.langgraphStore;
     const idx = await kv.get(ORDERS_MANIFEST_NAMESPACE, "all").catch(() => null);
     const ids: string[] = idx?.value?.ids || [];
     if (ids.length === 0) return [];
@@ -42,7 +42,7 @@ async function getOrderById(orderId: string): Promise<Order | null> {
   try {
     const store = getGlobalStore();
     if (!store) return null;
-    const kv = store?.langgraphStore ?? store;
+    const kv = store.langgraphStore;
     const item = await kv.get(ORDERS_NAMESPACE, orderId);
     return (item?.value as Order) ?? null;
   } catch {}

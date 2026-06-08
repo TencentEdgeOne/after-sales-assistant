@@ -3,7 +3,7 @@
  *
  * Supported formats:
  * - Plain text: .txt, .md, .csv, .json, .tex, .ts, .js, .py, .go, .rs, .java
- * - PDF: .pdf (via pdf-parse)
+ * - PDF: .pdf (via unpdf)
  * - Word: .docx (via mammoth)
  * - Excel: .xlsx, .xls (via xlsx)
  * - PowerPoint: .pptx (basic XML extraction)
@@ -79,9 +79,12 @@ export function getSupportedExtensions(): string[] {
 
 async function parsePDF(buffer: Buffer): Promise<string> {
   try {
-    const pdfParse = (await import("pdf-parse")).default;
-    const result = await pdfParse(buffer);
-    return result.text || "";
+    const { extractText, getDocumentProxy } = await import("unpdf");
+    // unpdf 期望 Uint8Array；Buffer 是其子类，但显式拷一份避免下游对底层 ArrayBuffer
+    // 的偏移/长度断言失败（SCF 容器里见过 Buffer.subarray 的偏移把 PDF.js 搞挂）。
+    const pdf = await getDocumentProxy(new Uint8Array(buffer));
+    const { text } = await extractText(pdf, { mergePages: true });
+    return Array.isArray(text) ? text.join("\n") : text || "";
   } catch (e) {
     logger.error("PDF parse error:", (e as Error).message);
     throw new Error(`Failed to parse PDF: ${(e as Error).message}`);

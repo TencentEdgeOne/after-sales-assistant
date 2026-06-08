@@ -6,9 +6,15 @@
  * - action: "get" + docId + category → return doc content + summary
  * - action: "delete" + docId + category → remove doc
  * - action: "edit" + docId + category + content + title → update content, regenerate summary
+ * - action: "list_orders" → list all seeded orders
+ *
+ * 注意：本端点放在 agents/ 下（而非 cloud-functions/），原因是它需要直接访问
+ * context.store.langgraphStore 做底层 KV 读写。Cloud-function runtime 在
+ * `createCloudFunctionAgentStore` 里显式剥离了 langgraphStore / langgraphCheckpointer
+ * 适配器，只保留通用消息 API；agent 端点拿到的 context.store 才是完整 AgentMemory。
  */
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
-import { createModel } from "../../agents/_shared";
+import { createModel } from "../_shared";
 import {
   getAllSummaries,
   getDocContent,
@@ -16,8 +22,6 @@ import {
   saveDoc,
   type DocCategory,
 } from "../../lib/doc-store";
-
-
 
 const VALID_CATEGORIES: DocCategory[] = ["faq", "policy", "product", "order_doc"];
 
@@ -115,8 +119,8 @@ export async function onRequest(context: any) {
   const body = request?.body ?? {};
   const { action, category, docId, content, title } = body;
 
-  // Get store (cloud-functions use context.agent?.store)
-  const store = context.agent?.store ?? null;
+  // Agent endpoint → use context.store (full AgentMemory with langgraphStore).
+  const store = context.store ?? null;
   if (!store) {
     return jsonResponse({ error: "STORE_NOT_CONFIGURED", message: "Storage is not available. Deploy to EdgeOne Makers for automatic configuration." }, 503);
   }
@@ -223,7 +227,7 @@ export async function onRequest(context: any) {
 
       // ─── List Orders ───
       case "list_orders": {
-        const kv = store?.langgraphStore ?? store;
+        const kv = store.langgraphStore;
         const ORDERS_NS = ["aftersales", "orders"];
         const MANIFEST_NS = ["aftersales", "orders_manifest"];
         const idx = await kv.get(MANIFEST_NS, "all").catch(() => null);
@@ -239,7 +243,7 @@ export async function onRequest(context: any) {
       }
 
       default:
-        return jsonResponse({ error: `Unknown action: ${action}. Supported: list, get, delete, edit` }, 400);
+        return jsonResponse({ error: `Unknown action: ${action}. Supported: list, get, delete, edit, list_orders` }, 400);
     }
   } catch (e) {
     console.error(`[manage] Manage error (${action}):`, (e as Error).message);

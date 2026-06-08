@@ -45,7 +45,7 @@ async function addToManifest(kv: any, orderId: string): Promise<void> {
 /** Get a single order by ID */
 export async function getOrder(context: any, orderId: string): Promise<Order | null> {
   try {
-    const kv = context.store?.langgraphStore ?? context.store;
+    const kv = context.store.langgraphStore;
     const item = await kv.get(ORDERS_NAMESPACE, orderId);
     return (item?.value as Order) ?? null;
   } catch {}
@@ -54,7 +54,7 @@ export async function getOrder(context: any, orderId: string): Promise<Order | n
 
 /** Save/update an order (also updates the manifest) */
 export async function saveOrder(context: any, order: Order): Promise<void> {
-  const kv = context.store?.langgraphStore ?? context.store;
+  const kv = context.store.langgraphStore;
   await kv.put(ORDERS_NAMESPACE, order.orderId, { ...order });
   await addToManifest(kv, order.orderId);
 }
@@ -62,7 +62,7 @@ export async function saveOrder(context: any, order: Order): Promise<void> {
 /** List all orders for a user — manifest-based, no search needed */
 export async function listUserOrders(store: any, userId = "default"): Promise<Order[]> {
   try {
-    const kv = store?.langgraphStore ?? store;
+    const kv = store.langgraphStore;
     const ids = await readManifest(kv);
     if (ids.length === 0) return [];
     const orders = await Promise.all(

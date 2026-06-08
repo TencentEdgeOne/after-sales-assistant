@@ -37,7 +37,7 @@ async function generateSummary(title: string, content: string, locale: Locale, e
 }
 
 async function* streamSeedDemo(store: any, locale: Locale, env: AgentEnv): AsyncGenerator<string> {
-  const kv = store?.langgraphStore ?? store;
+  const kv = store.langgraphStore;
   const DEMO_DOCS = getDemoDocs(locale);
   const DEMO_ORDERS = getDemoOrders(locale);
 
