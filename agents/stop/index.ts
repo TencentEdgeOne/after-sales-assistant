@@ -7,6 +7,10 @@
  * conversation_id is therefore read from the request body, not the header.
  */
 export async function onRequest(context: any) {
+  // /stop endpoint: the frontend MUST pass conversation_id via the body
+  // (carrying the `makers-conversation-id` header would sticky-route /stop to
+  // the busy chat instance, and abortActiveRun would never reach the runner).
+  // Body wins; runtime-injected context.conversation_id acts as a fallback.
   const body = (context.request?.body ?? {}) as Record<string, unknown>;
   const conversationId =
     (body.conversation_id as string | undefined) ??

@@ -2,8 +2,9 @@
  * Document Store — Multi-category storage for after-sales knowledge base.
  *
  * Uses context.store.langgraphStore (proper KV store).
- * 仅在 agent 端点（agents/<name>/index.ts）下调用——cloud-function 的
- * context.agent.store 被 runtime 剥离了 langgraphStore，不能用本模块。
+ * Only callable from agent endpoints (`agents/<name>/index.ts`); cloud-functions
+ * get `context.agent.store` which has `langgraphStore` stripped by the runtime,
+ * so this module does not work in that context.
  *
  * Storage layout (single global manifest, mirrors orders.ts pattern):
  *   namespace: ["kb", "doc", category]   key: docId   → DocRecord (full record incl content)
@@ -16,28 +17,16 @@
  * yielding empty manifests after successful writes. Orders use the same
  * single-key pattern reliably, so we mirror that here.
  */
+// Revision notes:
+// - Removed the module-level _globalStore singleton (would mismatch under
+//   concurrency / cold start; conflicts with SOP H-175 "Never treat an
+//   in-process `new Map()` as durable storage").
+// - Every function now requires `store` as its first argument; callers pass
+//   `context.store` explicitly.
+
 import { createLogger } from "../agents/_shared";
 
 const logger = createLogger("doc-store");
-
-// ─── Global store fallback (for graph nodes that can't receive context) ───
-
-let _globalStore: any = null;
-
-export function setGlobalStore(store: any): void {
-  _globalStore = store;
-}
-
-export function getGlobalStore(): any {
-  return _globalStore;
-}
-
-function resolveStore(arg1?: any, arg2?: string): [any, string | undefined] {
-  if (arg1 === undefined || typeof arg1 === "string") {
-    return [_globalStore, arg1 as string | undefined];
-  }
-  return [arg1, arg2];
-}
 
 // ─── Types ───
 
@@ -108,10 +97,9 @@ const ALL_CATEGORIES: DocCategory[] = ["faq", "policy", "product", "order_doc"];
 
 /**
  * Get all summaries, optionally filtered by category.
- * Overloaded: getAllSummaries() | getAllSummaries("cat") | getAllSummaries(store) | getAllSummaries(store, "cat")
+ * Both arguments are required: (store, category?).
  */
-export async function getAllSummaries(arg1?: any, arg2?: string): Promise<DocSummary[]> {
-  const [store, category] = resolveStore(arg1, arg2);
+export async function getAllSummaries(store: any, category?: string): Promise<DocSummary[]> {
   const entries = await readManifest(store);
   if (!category) return entries;
   if (!ALL_CATEGORIES.includes(category as DocCategory)) return [];
@@ -120,57 +108,24 @@ export async function getAllSummaries(arg1?: any, arg2?: string): Promise<DocSum
 
 /**
  * Get full document content by category and docId.
- * Overloaded: getDocContent(category, docId) | getDocContent(store, category, docId)
  */
-export async function getDocContent(arg1: any, arg2: string, arg3?: string): Promise<string | null> {
-  let store: any, category: string, docId: string;
-  if (arg3 === undefined) {
-    [store] = resolveStore();
-    category = arg1;
-    docId = arg2;
-  } else {
-    store = arg1;
-    category = arg2;
-    docId = arg3;
-  }
+export async function getDocContent(store: any, category: string, docId: string): Promise<string | null> {
   const rec = await getDocRecord(store, category, docId);
   return rec?.content ?? null;
 }
 
 /**
  * Save a document with its content and summary metadata.
- * Overloaded: saveDoc(category, docId, ...) | saveDoc(store, category, docId, ...)
  */
 export async function saveDoc(
-  arg1: any,
-  arg2: DocCategory | string,
-  arg3: string,
-  arg4: string,
-  arg5?: string,
-  arg6?: string | string[],
-  arg7?: string[]
+  store: any,
+  category: DocCategory,
+  docId: string,
+  filename: string,
+  content: string,
+  summary: string,
+  keywords: string[] = []
 ): Promise<void> {
-  let store: any, category: DocCategory, docId: string, filename: string, content: string, summary: string, keywords: string[];
-  if (arg5 === undefined) {
-    throw new Error("saveDoc: insufficient arguments");
-  }
-  if (typeof arg1 === "string") {
-    [store] = resolveStore();
-    category = arg1 as DocCategory;
-    docId = arg2 as string;
-    filename = arg3;
-    content = arg4;
-    summary = arg5;
-    keywords = (arg6 as unknown as string[]) || [];
-  } else {
-    store = arg1;
-    category = arg2 as DocCategory;
-    docId = arg3;
-    filename = arg4;
-    content = arg5;
-    summary = (arg6 as string) || "";
-    keywords = arg7 || [];
-  }
 
   const uploadedAt = new Date().toISOString();
   const record: DocRecord = {

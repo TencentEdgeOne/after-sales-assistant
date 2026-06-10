@@ -1,6 +1,10 @@
 /**
  * Graph nodes — each node is a function (state) => partial state update.
  * All user-facing strings are routed through agents/_i18n.ts (state.locale).
+ *
+ * `context` (carrying context.store) is closed over by the graph builder so that
+ * every request binds its own store — no module-level mutable state, safe under
+ * concurrency.
  */
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { createModel, createLogger } from "../_shared";
@@ -8,7 +12,7 @@ import type { AfterSalesStateType } from "./state";
 
 /** AI Gateway env, threaded from context.env through the graph builder. */
 type AgentEnv = Record<string, string | undefined>;
-import { getAllSummaries, getDocContent, saveDoc, getGlobalStore } from "../../lib/doc-store";
+import { getAllSummaries, getDocContent, saveDoc } from "../../lib/doc-store";
 import type { Order } from "../_shared";
 import { t, statusLabel, languageDirective, type Locale } from "../_i18n";
 
@@ -19,11 +23,10 @@ const logger = createLogger("nodes");
 const ORDERS_NAMESPACE = ["aftersales", "orders"];
 const ORDERS_MANIFEST_NAMESPACE = ["aftersales", "orders_manifest"];
 
-async function getAllOrders(): Promise<Order[]> {
+async function getAllOrders(context: any): Promise<Order[]> {
   try {
-    const store = getGlobalStore();
-    if (!store) return [];
-    const kv = store.langgraphStore;
+    const kv = context?.store?.langgraphStore;
+    if (!kv) return [];
     const idx = await kv.get(ORDERS_MANIFEST_NAMESPACE, "all").catch(() => null);
     const ids: string[] = idx?.value?.ids || [];
     if (ids.length === 0) return [];
@@ -38,11 +41,10 @@ async function getAllOrders(): Promise<Order[]> {
   return [];
 }
 
-async function getOrderById(orderId: string): Promise<Order | null> {
+async function getOrderById(context: any, orderId: string): Promise<Order | null> {
   try {
-    const store = getGlobalStore();
-    if (!store) return null;
-    const kv = store.langgraphStore;
+    const kv = context?.store?.langgraphStore;
+    if (!kv) return null;
     const item = await kv.get(ORDERS_NAMESPACE, orderId);
     return (item?.value as Order) ?? null;
   } catch {}
@@ -57,7 +59,7 @@ function filterOrderSummaries(summaries: Awaited<ReturnType<typeof getAllSummari
   return summaries.filter(s => ORDER_FILENAME_RE.test(s.filename));
 }
 
-async function lookupBlobOrderDoc(orderId: string): Promise<{
+async function lookupBlobOrderDoc(context: any, orderId: string): Promise<{
   content: string;
   docId: string;
   summary: string;
@@ -65,7 +67,7 @@ async function lookupBlobOrderDoc(orderId: string): Promise<{
   filename: string;
 } | null> {
   try {
-    const summaries = await getAllSummaries("order_doc");
+    const summaries = await getAllSummaries(context.store, "order_doc");
     const needle = orderId.toUpperCase();
     const matchedDoc = summaries.find(
       s =>
@@ -73,7 +75,7 @@ async function lookupBlobOrderDoc(orderId: string): Promise<{
         s.keywords.some(k => k.toUpperCase() === needle)
     );
     if (!matchedDoc) return null;
-    const content = await getDocContent("order_doc", matchedDoc.docId);
+    const content = await getDocContent(context.store, "order_doc", matchedDoc.docId);
     if (!content) return null;
     return {
       content,
@@ -145,9 +147,9 @@ export async function intentRecognition(state: AfterSalesStateType, env: AgentEn
 
 // ─── FAQ Search (Knowledge Base) ───
 
-export async function faqSearch(state: AfterSalesStateType, env: AgentEnv) {
+export async function faqSearch(state: AfterSalesStateType, env: AgentEnv, context: any) {
   const locale = (state.locale || "zh") as Locale;
-  const summaries = await getAllSummaries();
+  const summaries = await getAllSummaries(context.store);
   logger.log(`Knowledge base has ${summaries.length} documents`);
 
   if (summaries.length === 0) {
@@ -197,14 +199,14 @@ ${summaryList}`),
   const selectedDocs = selectedIndices.map(i => summaries[i]);
   const contents = await Promise.all(
     selectedDocs.map(async (doc) => {
-      const content = await getDocContent(doc.category, doc.docId);
+      const content = await getDocContent(context.store, doc.category, doc.docId);
       return { ...doc, content: content || doc.summary };
     })
   );
 
   logger.log(`Selected ${contents.length} docs for answer generation (locale=${locale})`);
 
-  const context = contents.map(d => `【${d.category}/${d.filename}】\n${d.content}`).join("\n\n");
+  const contextText = contents.map(d => `【${d.category}/${d.filename}】\n${d.content}`).join("\n\n");
 
   // Answer generation — language directive forces output in user locale
   const response = await model.invoke([
@@ -216,7 +218,7 @@ ${summaryList}`),
 - 注明信息来源的文档类别
 
 知识库文档：
-${context}${languageDirective(locale)}`),
+${contextText}${languageDirective(locale)}`),
     new HumanMessage(state.userInput),
   ]);
 
@@ -233,15 +235,15 @@ ${context}${languageDirective(locale)}`),
 
 // ─── Lookup Order ───
 
-export async function lookupOrder(state: AfterSalesStateType) {
+export async function lookupOrder(state: AfterSalesStateType, context: any) {
   const locale = (state.locale || "zh") as Locale;
   const sep = locale === "en" ? ", " : "、";
   const orderId = state.orderId;
 
   if (!orderId) {
     const [storeOrders, blobSummaries] = await Promise.all([
-      getAllOrders(),
-      getAllSummaries("order_doc").then(filterOrderSummaries),
+      getAllOrders(context),
+      getAllSummaries(context.store, "order_doc").then(filterOrderSummaries),
     ]);
 
     const storeLines = storeOrders.map(o => {
@@ -273,11 +275,11 @@ export async function lookupOrder(state: AfterSalesStateType) {
 
   let order = (state.currentOrder?.orderId === orderId) ? state.currentOrder : null;
   if (!order) {
-    order = await getOrderById(orderId);
+    order = await getOrderById(context, orderId);
   }
 
   if (!order) {
-    const blobDoc = await lookupBlobOrderDoc(orderId);
+    const blobDoc = await lookupBlobOrderDoc(context, orderId);
     if (blobDoc) {
       return {
         aiResponse: t(locale, "ai.orderFoundFromBlob", { orderId, content: blobDoc.content }),
@@ -308,15 +310,15 @@ export async function lookupOrder(state: AfterSalesStateType) {
 
 // ─── Request Refund ───
 
-export async function requestRefund(state: AfterSalesStateType) {
+export async function requestRefund(state: AfterSalesStateType, context: any) {
   const locale = (state.locale || "zh") as Locale;
   const sep = locale === "en" ? ", " : "、";
   const ineligibleNote = (label: string) => locale === "en" ? ` *(${label}, not eligible for refund)*` : ` *(${label}，暂不可退款)*`;
 
   if (!state.currentOrder && !state.orderId) {
     const [storeOrders, blobSummaries] = await Promise.all([
-      getAllOrders(),
-      getAllSummaries("order_doc").then(filterOrderSummaries),
+      getAllOrders(context),
+      getAllSummaries(context.store, "order_doc").then(filterOrderSummaries),
     ]);
 
     const storeLines = storeOrders.map(o => {
@@ -346,12 +348,12 @@ export async function requestRefund(state: AfterSalesStateType) {
 
   let order = state.currentOrder;
   if (!order && state.orderId) {
-    order = await getOrderById(state.orderId);
+    order = await getOrderById(context, state.orderId);
   }
 
   if (!order) {
     const orderId = state.orderId!;
-    const blobDoc = await lookupBlobOrderDoc(orderId);
+    const blobDoc = await lookupBlobOrderDoc(context, orderId);
     if (blobDoc) {
       const status = detectStatusFromText(blobDoc.content + " " + blobDoc.keywords.join(" "));
 
@@ -379,10 +381,18 @@ export async function requestRefund(state: AfterSalesStateType) {
       const updatedContent = `${blobDoc.content}${refundMarker}`;
       const refundKeyword = locale === "en" ? "refund_requested" : "退款申请中";
       try {
-        await saveDoc("order_doc", blobDoc.docId, blobDoc.filename, updatedContent, blobDoc.summary, [
-          ...blobDoc.keywords.filter(k => !k.includes("退款") && !k.includes("换货") && !k.includes("refund") && !k.includes("exchange")),
-          refundKeyword,
-        ]);
+        await saveDoc(
+          context.store,
+          "order_doc",
+          blobDoc.docId,
+          blobDoc.filename,
+          updatedContent,
+          blobDoc.summary,
+          [
+            ...blobDoc.keywords.filter(k => !k.includes("退款") && !k.includes("换货") && !k.includes("refund") && !k.includes("exchange")),
+            refundKeyword,
+          ]
+        );
       } catch {}
 
       return {
@@ -448,15 +458,15 @@ export async function requestRefund(state: AfterSalesStateType) {
 
 // ─── Request Exchange ───
 
-export async function requestExchange(state: AfterSalesStateType) {
+export async function requestExchange(state: AfterSalesStateType, context: any) {
   const locale = (state.locale || "zh") as Locale;
   const sep = locale === "en" ? ", " : "、";
   const ineligibleNote = (label: string) => locale === "en" ? ` *(${label}, not eligible for exchange)*` : ` *(${label}，暂不可换货)*`;
 
   if (!state.currentOrder && !state.orderId) {
     const [storeOrders, blobSummaries] = await Promise.all([
-      getAllOrders(),
-      getAllSummaries("order_doc").then(filterOrderSummaries),
+      getAllOrders(context),
+      getAllSummaries(context.store, "order_doc").then(filterOrderSummaries),
     ]);
 
     const storeLines = storeOrders.map(o => {
@@ -486,12 +496,12 @@ export async function requestExchange(state: AfterSalesStateType) {
 
   let order = state.currentOrder;
   if (!order && state.orderId) {
-    order = await getOrderById(state.orderId);
+    order = await getOrderById(context, state.orderId);
   }
 
   if (!order) {
     const orderId = state.orderId!;
-    const blobDoc = await lookupBlobOrderDoc(orderId);
+    const blobDoc = await lookupBlobOrderDoc(context, orderId);
     if (blobDoc) {
       const status = detectStatusFromText(blobDoc.content + " " + blobDoc.keywords.join(" "));
 
@@ -519,10 +529,18 @@ export async function requestExchange(state: AfterSalesStateType) {
       const updatedContent = `${blobDoc.content}${exchangeMarker}`;
       const exchangeKeyword = locale === "en" ? "exchange_requested" : "换货申请中";
       try {
-        await saveDoc("order_doc", blobDoc.docId, blobDoc.filename, updatedContent, blobDoc.summary, [
-          ...blobDoc.keywords.filter(k => !k.includes("退款") && !k.includes("换货") && !k.includes("refund") && !k.includes("exchange")),
-          exchangeKeyword,
-        ]);
+        await saveDoc(
+          context.store,
+          "order_doc",
+          blobDoc.docId,
+          blobDoc.filename,
+          updatedContent,
+          blobDoc.summary,
+          [
+            ...blobDoc.keywords.filter(k => !k.includes("退款") && !k.includes("换货") && !k.includes("refund") && !k.includes("exchange")),
+            exchangeKeyword,
+          ]
+        );
       } catch {}
 
       return {

@@ -7,7 +7,6 @@
  */
 import { createLogger, createSSEResponse, sseEvent, saveOrder, getOrder } from "../_shared";
 import { buildAfterSalesGraph } from "../_graph/builder";
-import { setGlobalStore } from "../../lib/doc-store";
 import { t, getLocale, type Locale } from "../_i18n";
 import type { AfterSalesStateType } from "../_graph/state";
 
@@ -52,11 +51,16 @@ async function* streamAfterSales(
   locale: Locale,
   signal?: AbortSignal
 ): AsyncGenerator<string> {
-  const conversationId = context.conversation_id || "default";
+  // Runtime auto-injects context.conversation_id from the
+  // `makers-conversation-id` HTTP header — single channel is enough.
+  const conversationId = context.conversation_id || "";
 
-  setGlobalStore(context.store);
+  if (!conversationId) {
+    yield sseEvent({ type: "error_message", content: "Missing conversation_id" });
+    return;
+  }
 
-  const graph = buildAfterSalesGraph(context.env ?? {});
+  const graph = buildAfterSalesGraph(context, context.env ?? {});
   const priorState = await loadState(context, conversationId);
 
   let preloadedOrder = priorState?.currentOrder || null;
@@ -136,6 +140,10 @@ async function* streamAfterSales(
     yield sseEvent({ type: "pending_action", intent: lastState.intent });
   }
 
+  // usage event: SOP §D requires a token-accounting event at the end of the
+  // stream. We don't yet aggregate tokens at the node layer; to produce exact
+  // counts, accumulate `usage_metadata` from each `model.invoke()` return value
+  // during the `graph.stream` traversal and emit it here.
   yield sseEvent({ type: "status", status: "complete" });
   yield "data: [DONE]\n\n";
 }

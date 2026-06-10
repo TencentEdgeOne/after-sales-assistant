@@ -1,9 +1,9 @@
 /**
  * Build the after-sales LangGraph state machine.
  *
- * `env` (from context.env) is threaded into the LLM-calling nodes via closures,
- * so each request binds its own env — no module-level mutable state, safe under
- * concurrency.
+ * `env` (from context.env) and `context` (full EdgeOne context) are threaded into
+ * the nodes via closures, so each request binds its own values — no module-level
+ * mutable state, safe under concurrency.
  */
 import { StateGraph, END, START } from "@langchain/langgraph";
 import { AfterSalesState } from "./state";
@@ -19,13 +19,13 @@ import {
 
 type AgentEnv = Record<string, string | undefined>;
 
-export function buildAfterSalesGraph(env: AgentEnv) {
+export function buildAfterSalesGraph(context: any, env: AgentEnv) {
   const graph = new StateGraph(AfterSalesState)
     .addNode("intent_recognition", (s) => intentRecognition(s, env))
-    .addNode("faq_search", (s) => faqSearch(s, env))
-    .addNode("lookup_order", lookupOrder)
-    .addNode("request_refund", requestRefund)
-    .addNode("request_exchange", requestExchange)
+    .addNode("faq_search", (s) => faqSearch(s, env, context))
+    .addNode("lookup_order", (s) => lookupOrder(s, context))
+    .addNode("request_refund", (s) => requestRefund(s, context))
+    .addNode("request_exchange", (s) => requestExchange(s, context))
     .addNode("general_chat", (s) => generalChat(s, env))
     .addEdge(START, "intent_recognition")
     .addConditionalEdges("intent_recognition", routeByIntent, {
