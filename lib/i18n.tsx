@@ -4,7 +4,8 @@
  * Frontend i18n module — React Context + useT() hook.
  *
  * Storage: localStorage key "aftersales-locale"
- * Default: "zh" (matches initial render to avoid flash)
+ * Default: "en" (default-first experience is English; users can switch
+ * to Chinese via the lang toggle, and the choice persists in localStorage)
  *
  * Backend has a parallel module at agents/_i18n.ts with overlapping keys.
  */
@@ -207,7 +208,9 @@ interface I18nContextValue {
 const I18nContext = createContext<I18nContextValue | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("zh");
+  // Default to English for first-time visitors; the useEffect below hydrates
+  // the user's stored choice from localStorage on mount.
+  const [locale, setLocaleState] = useState<Locale>("en");
   const [hydrated, setHydrated] = useState(false);
 
   // Read from localStorage on mount (avoids SSR/hydration mismatch)
@@ -261,12 +264,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 export function useT(): I18nContextValue {
   const ctx = useContext(I18nContext);
   if (!ctx) {
-    // Fallback for components outside provider (shouldn't happen in practice)
+    // Fallback for components outside provider (shouldn't happen in practice).
+    // Mirrors the default locale in I18nProvider.
     return {
-      locale: "zh",
+      locale: "en",
       setLocale: () => {},
       t: (key, params) => {
-        let str = ZH[key] ?? key;
+        let str = EN[key] ?? ZH[key] ?? key;
         if (params) for (const [k, v] of Object.entries(params)) str = str.split(`{${k}}`).join(String(v));
         return str;
       },

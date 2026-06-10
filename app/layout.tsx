@@ -8,9 +8,10 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  // <html lang> defaults to zh-CN; client-side I18nProvider updates it after mount.
+  // <html lang> defaults to "en"; client-side I18nProvider updates it after
+  // mount if the user has chosen a different locale.
   return (
-    <html lang="zh-CN">
+    <html lang="en">
       <body className="bg-gray-50 text-gray-900 antialiased">
         <I18nProvider>{children}</I18nProvider>
       </body>
