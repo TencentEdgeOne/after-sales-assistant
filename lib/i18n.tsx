@@ -26,7 +26,6 @@ const ZH: Record<string, string> = {
   "ui.header.langSwitch": "EN",
   "ui.warn.envMissing": "环境变量未配置，部分功能不可用。",
   "ui.warn.missing": "缺少：{names}",
-  "ui.warn.storeUnavailable": "· 知识库存储不可用（需部署到 EdgeOne Makers）",
 
   // Chat panel
   "ui.chat.welcome": "您好！我是售后客服助手，有什么可以帮您？\n\n如果是首次使用，请先打开右上角「知识库」一键导入演示数据。",
@@ -55,8 +54,6 @@ const ZH: Record<string, string> = {
   "ui.manage.btn.addManual": "+ 手动录入",
   "ui.manage.btn.importDemo": "🚀 导入 Demo",
   "ui.manage.demo.preparing": "正在准备导入...",
-  "ui.manage.empty.unavailableTitle": "存储服务不可用",
-  "ui.manage.empty.unavailableHint": "知识库功能需要部署到 EdgeOne Makers 后才能使用",
   "ui.manage.empty.title": "暂无文档",
   "ui.manage.empty.hint": "点击右上角「🚀 导入 Demo」快速体验",
   "ui.manage.form.titleOrderPlaceholder": "订单号（按 Tab 填入完整示例）",
@@ -115,7 +112,6 @@ const EN: Record<string, string> = {
   "ui.header.langSwitch": "中",
   "ui.warn.envMissing": "Environment variables not configured. Some features unavailable.",
   "ui.warn.missing": "Missing: {names}",
-  "ui.warn.storeUnavailable": "· Knowledge base storage unavailable (deploy to EdgeOne Makers)",
 
   // Chat panel
   "ui.chat.welcome": "Hello! I'm the after-sales assistant. How can I help?\n\nFirst time? Open the Knowledge Base on the top-right and import the demo data.",
@@ -144,8 +140,6 @@ const EN: Record<string, string> = {
   "ui.manage.btn.addManual": "+ Add Text",
   "ui.manage.btn.importDemo": "🚀 Import Demo",
   "ui.manage.demo.preparing": "Preparing import...",
-  "ui.manage.empty.unavailableTitle": "Storage unavailable",
-  "ui.manage.empty.unavailableHint": "Knowledge base requires deployment to EdgeOne Makers",
   "ui.manage.empty.title": "No documents yet",
   "ui.manage.empty.hint": "Click \"🚀 Import Demo\" on the top-right to get started",
   "ui.manage.form.titleOrderPlaceholder": "Order ID (press Tab to fill an example)",

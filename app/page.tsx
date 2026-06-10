@@ -8,7 +8,6 @@ import { useT } from "../lib/i18n";
 interface HealthStatus {
   ok: boolean;
   hasAiGateway: boolean;
-  hasStore: boolean;
   missing: string[];
 }
 
@@ -37,11 +36,6 @@ export default function Home() {
             {!health.hasAiGateway && (health.missing?.length ?? 0) > 0 && (
               <span className="text-[11px] text-amber-600 ml-1.5">
                 {t("ui.warn.missing", { names: (health.missing ?? []).join(locale === "en" ? ", " : "、") })}
-              </span>
-            )}
-            {!health.hasStore && (
-              <span className="text-[11px] text-amber-600 ml-1.5">
-                {t("ui.warn.storeUnavailable")}
               </span>
             )}
           </div>

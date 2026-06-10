@@ -131,7 +131,6 @@ export function ManagePanel({ onClose }: { onClose: () => void }) {
   const [formCategory, setFormCategory] = useState("faq");
   const [viewingDoc, setViewingDoc] = useState<{ docId: string; category: string; filename: string; content: string } | null>(null);
   const [loadingContent, setLoadingContent] = useState(false);
-  const [storeUnavailable, setStoreUnavailable] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tabCycleRef = useRef(0);
   const loadDocsAbortRef = useRef<AbortController | null>(null);
@@ -169,11 +168,7 @@ export function ManagePanel({ onClose }: { onClose: () => void }) {
         body: JSON.stringify(body),
         signal: ac.signal,
       });
-      if (res.status === 503) {
-        setStoreUnavailable(true);
-        setDocs([]);
-      } else if (res.ok) {
-        setStoreUnavailable(false);
+      if (res.ok) {
         const data = await res.json();
         setDocs(data.documents || []);
       }
@@ -558,17 +553,6 @@ export function ManagePanel({ onClose }: { onClose: () => void }) {
             return (
               <div className="flex items-center justify-center py-12">
                 <div className="w-5 h-5 border-2 border-gray-300 border-t-indigo-500 rounded-full animate-spin" />
-              </div>
-            );
-          }
-          if (storeUnavailable) {
-            return (
-              <div className="text-center py-10 px-6">
-                <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-3">
-                  <span className="text-xl">⚠️</span>
-                </div>
-                <p className="text-[13px] text-amber-700 font-medium">{t("ui.manage.empty.unavailableTitle")}</p>
-                <p className="text-[11px] text-gray-400 mt-1">{t("ui.manage.empty.unavailableHint")}</p>
               </div>
             );
           }
