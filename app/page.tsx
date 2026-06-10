@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { ChatPanel } from "./components/chat-panel";
 import { ManagePanel } from "./components/manage-panel";
+import { DeployButtons } from "./components/deploy-buttons";
 import { useT } from "../lib/i18n";
 
 interface HealthStatus {
@@ -58,6 +59,11 @@ export default function Home() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <DeployButtons
+            templateSlug="after-sales-assistant"
+            githubUrl="https://github.com/edgeone-pages-test/after-sales-assistant"
+            lang={locale}
+          />
           <button
             onClick={() => setLocale(locale === "en" ? "zh" : "en")}
             className="text-[11px] px-2.5 py-1 rounded-md border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition-colors"
