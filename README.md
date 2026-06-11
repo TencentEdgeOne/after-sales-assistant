@@ -1,15 +1,10 @@
 # After-Sales Assistant
 
-**Language:** English | [简体中文](./README_zh-CN.md)
-
 AI-powered after-sales customer service agent with order management, knowledge-base retrieval, and interactive UI cards. Built on the LangGraph framework and deployed on EdgeOne Makers.
 
 **Framework:** LangGraph · **Category:** Chat · **Language:** TypeScript
 
 [![Deploy to EdgeOne Makers](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.tencentcloud.com/edgeone/makers/new?template=after-sales-assistant&from=within&fromAgent=1&agentLang=typescript)
-
-<!-- TODO: confirm -->
-![preview](./assets/preview.png)
 
 ## Overview
 

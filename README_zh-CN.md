@@ -1,15 +1,10 @@
 # After-Sales Assistant（售后助手）
 
-**语言：** [English](./README.md) | 简体中文
-
 基于 LangGraph 框架构建、部署在 EdgeOne Makers 上的 AI 售后客服 Agent，支持订单管理、知识库检索与交互式卡片。
 
 **Framework:** LangGraph · **Category:** Chat · **Language:** TypeScript
 
 [![部署到 EdgeOne Makers](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.cloud.tencent.com/edgeone/makers/new?template=after-sales-assistant&from=within&fromAgent=1&agentLang=typescript)
-
-<!-- TODO: confirm -->
-![preview](./assets/preview.png)
 
 ## Overview
 
