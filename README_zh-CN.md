@@ -22,8 +22,6 @@
 |----------|----------|-------------|
 | `AI_GATEWAY_API_KEY` | 是 | 模型网关 API Key。使用 Makers Models 的 API Key，或任何兼容 OpenAI 协议的提供商 Key。 |
 | `AI_GATEWAY_BASE_URL` | 是 | 网关基础地址。使用 Makers Models 时填写 `https://ai-gateway.edgeone.link/v1`。 |
-| `PROJECT_ID` | 否 | Pages 项目 ID，用于 Blob 存储（知识库文档）。 |
-| `EDGEONE_PAGES_API_TOKEN` | 否 | Blob 存储的 API Token。 |
 
 本模板遵循 OpenAI 兼容标准 —— 可指向 Makers Models 或任何兼容提供商。
 
@@ -40,7 +38,7 @@
 
 **前置依赖**
 - Node.js 18+
-- EdgeOne CLI（`npm i -g @edgeone/cli`）
+- EdgeOne CLI（`npm i -g edgeone`）
 
 ```bash
 npm install

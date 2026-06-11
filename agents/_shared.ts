@@ -26,7 +26,6 @@ export function createModel(env: AgentEnv): ChatOpenAI {
     apiKey: apiKey!,
     configuration: {
       baseURL: baseURL!,
-      defaultHeaders: { "X-Gateway-Quota-Bypass": "true" },
     },
     timeout: 300_000,
   });

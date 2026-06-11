@@ -84,7 +84,9 @@ async function* streamAfterSales(
     cardEvent: null,
   };
 
-  const stream = await graph.stream(input, { signal });
+  // Node-level stream: each event is `{ nodeName: stateUpdate }`. Pin the mode
+  // explicitly so behavior doesn't depend on the LangGraph default.
+  const stream = await graph.stream(input, { streamMode: "updates", signal });
   let lastState: Partial<AfterSalesStateType> = { ...input };
 
   for await (const event of stream) {

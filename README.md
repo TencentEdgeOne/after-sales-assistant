@@ -22,8 +22,6 @@ This template provides an end-to-end after-sales assistant that handles refunds,
 |----------|----------|-------------|
 | `AI_GATEWAY_API_KEY` | Yes | Model gateway API key. Use your Makers Models API Key, or any OpenAI-compatible provider key. |
 | `AI_GATEWAY_BASE_URL` | Yes | Gateway base URL. For Makers Models, use `https://ai-gateway.edgeone.link/v1`. |
-| `PROJECT_ID` | No | Pages project ID for Blob storage (knowledge base documents). |
-| `EDGEONE_PAGES_API_TOKEN` | No | API token for Blob storage. |
 
 This template follows the OpenAI-compatible standard — point these at Makers Models or any compatible provider.
 
@@ -40,7 +38,7 @@ This template follows the OpenAI-compatible standard — point these at Makers M
 
 **Prerequisites**
 - Node.js 18+
-- EdgeOne CLI (`npm i -g @edgeone/cli`)
+- EdgeOne CLI (`npm i -g edgeone`)
 
 ```bash
 npm install
