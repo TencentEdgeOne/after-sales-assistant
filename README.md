@@ -1,20 +1,21 @@
 # After-Sales Assistant
 
-AI-powered after-sales customer service agent with order management, knowledge-base retrieval, and interactive UI cards. Built on the LangGraph framework and deployed on EdgeOne Makers.
+LangGraph-powered after-sales agent with summary-based knowledge routing and on-demand retrieval. Supports order lookup, refund and exchange workflows with a built-in knowledge management panel. Deployed on EdgeOne Makers.
 
 **Framework:** LangGraph · **Category:** Chat · **Language:** TypeScript
 
-[![Deploy to EdgeOne Makers](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.tencentcloud.com/edgeone/makers/new?template=after-sales-assistant&from=within&fromAgent=1&agentLang=typescript)
+[![Deploy to EdgeOne Makers](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://edgeone.ai/makers/new?template=after-sales-assistant&from=within&fromAgent=1&agentLang=typescript)
 
 ## Overview
 
-This template provides an end-to-end after-sales assistant that handles refunds, exchanges, order lookups, and FAQ queries through a conversational interface. A LangGraph state machine routes user intents to specialized handlers, persists order state across multi-turn conversations, and renders rich UI cards for order details and refund progress.
+This template implements a state-machine-driven customer service agent that recognizes user intent, routes to specialized handlers, and retrieves knowledge on demand. No vector database is required — FAQs and product knowledge are matched via summary-based routing and loaded only when needed.
 
-- **Intent-Based Routing** — LangGraph conditional edges automatically classify requests into FAQ search, order lookup, refund, exchange, or general chat.
-- **Order Lifecycle Management** — Query order status, process refunds, and request exchanges with full state persistence via the built-in store.
-- **Knowledge-Base Retrieval** — Upload documents to a multi-category Blob store; the agent retrieves relevant sections to answer policy questions.
-- **Interactive UI Cards** — The agent emits structured card events (order detail, refund progress, exchange confirmation, FAQ sources) that the frontend renders inline.
-- **Multi-Turn Context** — Conversation state and order context are preserved across turns using `langgraphStore`, enabling follow-up questions like "What about my other order?"
+- **Intent Recognition** — Classifies incoming messages into FAQ, order lookup, refund, exchange, or general chat.
+- **Knowledge Routing** — Matches user queries to the most relevant knowledge base entry via summary similarity, then loads the full content on demand.
+- **Order Workflows** — Dedicated handlers for order lookup, refund requests, and exchange requests with structured data validation.
+- **Knowledge Management Panel** — A separate management endpoint for adding, updating, and organizing FAQ entries and product documents.
+- **State Persistence** — Workflow state is persisted via `langgraphStore` so multi-turn interactions survive across requests.
+- **Bilingual UI** — Full Chinese / English interface with locale-aware AI output.
 
 ## Environment Variables
 
@@ -27,7 +28,7 @@ This template follows the OpenAI-compatible standard — point these at Makers M
 
 ### How to get AI_GATEWAY_API_KEY
 
-1. Open the Makers Console (https://console.cloud.tencent.com/edgeone/makers)
+1. Open the Makers Console (https://edgeone.ai/makers/new?s_url=https://console.tencentcloud.com/edgeone/makers)
 2. Sign in and enable Makers
 3. Go to Makers → Models → API Key and create a key
 4. Copy it into `AI_GATEWAY_API_KEY`
@@ -42,35 +43,39 @@ This template follows the OpenAI-compatible standard — point these at Makers M
 
 ```bash
 npm install
-# This project includes a .env file — update AI_GATEWAY_API_KEY and AI_GATEWAY_BASE_URL directly
+cp .env.example .env
+# Edit .env with your AI_GATEWAY_API_KEY and AI_GATEWAY_BASE_URL
 edgeone makers dev
 ```
 
-Open the local observability dashboard at http://localhost:8080/agent-metrics.
+Open the local observability dashboard at http://localhost:8088/agent-metrics.
 
 ## Project Structure
 
 ```
-after-sales-assistant-edgeone/
+after-sales-assistant/
 ├── agents/
-│   ├── _shared.ts          # Model init, SSE helpers, order types & persistence
-│   ├── _data/              # Mock order data and demo documents
+│   ├── chat/
+│   │   └── index.ts        # POST /chat — main chat with intent routing
+│   ├── manage/
+│   │   └── index.ts        # POST /manage — knowledge base management
+│   ├── upload/
+│   │   └── index.ts        # POST /upload — document upload
+│   ├── stop/
+│   │   └── index.ts        # POST /stop — abort active run
+│   ├── seed-demo/
+│   │   └── index.ts        # POST /seed-demo — initialize demo data
 │   ├── _graph/
-│   │   ├── builder.ts      # LangGraph state machine compilation
-│   │   ├── edges.ts        # Intent routing logic
-│   │   ├── nodes.ts        # Node implementations (intent, FAQ, order, refund, exchange)
-│   │   └── state.ts        # Graph state schema
-│   ├── chat/               # POST /chat — main SSE chat handler
-│   └── stop/               # POST /stop — abort active run
+│   │   ├── builder.ts      # LangGraph state machine builder
+│   │   ├── state.ts        # State schema definition
+│   │   ├── nodes.ts        # Intent handler nodes
+│   │   └── edges.ts        # Conditional routing edges
+│   ├── _data/              # Demo knowledge base data
+│   ├── _i18n.ts            # Chinese / English translations
+│   └── _shared.ts          # Model init, SSE helpers, logger
 ├── cloud-functions/
-│   ├── health/             # GET /health
-│   ├── manage/             # POST /manage — document CRUD
-│   ├── seed-demo/          # POST /seed-demo — batch import demo docs
-│   └── upload/             # POST /upload — file or text upload
+│   └── health/             # GET /health
 ├── app/                    # Next.js App Router frontend
-├── lib/
-│   ├── doc-store.ts        # Multi-category Blob document store
-│   └── parser.ts           # File parser (PDF/DOCX/XLSX/TXT/MD)
 └── edgeone.json            # EdgeOne deployment config
 ```
 
@@ -79,35 +84,39 @@ Files prefixed with `_` are private modules — not exposed as public routes.
 ## How It Works
 
 ### Runtime Mode
-Files under `agents/` run in **session mode**: requests with the same `conversation_id` are sticky-routed to the same agent instance. This means multi-turn conversations share the same memory context automatically.
+Files under `agents/` run in **session mode**: requests with the same `conversation_id` are sticky-routed to the same agent instance. This ensures LangGraph state and conversation context persist across follow-up messages.
 
 ### End-to-End Workflow
 
-1. **Request entry** — The frontend POSTs `{ message, pendingAction }` to `/chat`.
-2. **Intent recognition** — The LangGraph `intent_recognition` node classifies the user message into one of: `faq_search`, `lookup_order`, `request_refund`, `request_exchange`, or `general_chat`.
-3. **Conditional routing** — The `routeByIntent` edge dispatches to the matching node.
-4. **Tool / store execution** —
-   - `lookup_order` queries `langgraphStore` for the order and emits an `order_detail` card.
-   - `faq_search` retrieves documents from Blob storage and generates an answer with source references.
-   - `request_refund` / `request_exchange` validate the order state, update status, and emit progress cards.
-5. **State persistence** — After each turn, the graph state (current order, intent, waiting flags) is saved back to `langgraphStore` keyed by `conversation_id`.
-6. **SSE response** — The handler streams workflow steps, AI text, card events, and smart follow-up suggestions to the frontend.
-7. **Abort** — POST `/stop` with the conversation ID calls `context.utils.abortActiveRun` to cancel an in-flight generation.
+1. **Message intake** — The frontend POSTs `/chat` with the user message and locale via the `makers-conversation-id` header.
+2. **State load** — The handler loads any previously saved workflow state from `langgraphStore` for this conversation.
+3. **Intent recognition** — The LangGraph `intent_recognition` node classifies the message into one of: `faq_search`, `lookup_order`, `request_refund`, `request_exchange`, or `general_chat`.
+4. **Conditional routing** — The `routeByIntent` edge dispatches to the appropriate handler node based on the classified intent.
+5. **Node execution**:
+   - **faq_search** — Matches the query against knowledge base summaries, loads the best-matching full entry, and returns the answer.
+   - **lookup_order** — Queries order data and returns status, items, and tracking info.
+   - **request_refund** / **request_exchange** — Guides the user through the return/exchange flow with structured field collection.
+   - **general_chat** — Handles open-ended questions with the LLM directly.
+6. **State save** — The updated workflow state is persisted back to `langgraphStore`.
+7. **SSE output** — The response streams back as SSE events including `text_delta`, `tool_called`, and UI card events for the frontend to render.
 
 ### Key Routes & Parameters
-- `/chat` — Main conversational endpoint. Accepts `message` and optional `pendingAction` in the request body.
-- `/stop` — Cancel the active run for a conversation.
-- `conversation_id` is provided automatically by the runtime via `context.conversation_id`.
+- `/chat` — Main customer service endpoint. Header: `makers-conversation-id: <uuid>`; Body: `{ message, locale? }`.
+- `/manage` — Knowledge base management (add/update/delete FAQ entries). Body: `{ action, data }`.
+- `/upload` — Document upload for knowledge base ingestion. Body: `{ files[] }`.
+- `/seed-demo` — Initializes demo FAQ and order data for first-time setup.
+- `/stop` — Aborts the active run. Body: `{ conversation_id }`.
+- `/health` — Liveness probe (lives in `cloud-functions/`, not AI-related).
+- `conversation_id` is generated client-side and forwarded via the `makers-conversation-id` header; the runtime auto-binds it to `context.conversation_id`.
 
 ### Timeouts
-- `agents.timeout`: 900 seconds
-- `agents.sandbox.timeout`: 900 seconds
+No custom agent timeout is configured; the platform default applies.
 
 ## Resources
 
-- [Makers Agents Documentation](https://edgeone.ai/makers)
-- [Makers Quick Start](https://edgeone.ai/makers/docs/quickstart)
-- [Makers Models](https://console.cloud.tencent.com/edgeone/makers/models)
+- [Makers Agents Documentation](https://pages.edgeone.ai/document/agents) <!-- TODO: confirm slug -->
+- [Makers Quick Start](https://pages.edgeone.ai/document/quickstart) <!-- TODO: confirm slug -->
+- [Makers Models](https://pages.edgeone.ai/document/models) <!-- TODO: confirm slug -->
 
 ## License
 

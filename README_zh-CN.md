@@ -1,22 +1,23 @@
-# After-Sales Assistant（售后助手）
+# 售后客服助手
 
-基于 LangGraph 框架构建、部署在 EdgeOne Makers 上的 AI 售后客服 Agent，支持订单管理、知识库检索与交互式卡片。
+基于 LangGraph 的售后客服 Agent，支持摘要路由 + 按需加载知识库，无需向量数据库。支持订单查询、退款/换货申请，内置知识库管理面板。部署在 EdgeOne Makers。
 
 **Framework:** LangGraph · **Category:** Chat · **Language:** TypeScript
 
-[![部署到 EdgeOne Makers](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.cloud.tencent.com/edgeone/makers/new?template=after-sales-assistant&from=within&fromAgent=1&agentLang=typescript)
+[![部署到 EdgeOne Makers](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://edgeone.ai/makers/new?template=after-sales-assistant&from=within&fromAgent=1&agentLang=typescript)
 
-## Overview
+## 概述
 
-本模板提供端到端的售后助手能力，通过对话界面处理退款、换货、订单查询与 FAQ。LangGraph 状态机将用户意图路由到专用处理节点，在多轮对话中持久化订单状态，并为订单详情与退款进度渲染富交互卡片。
+本模板实现了一个状态机驱动的客服 Agent，能够识别用户意图、路由到专用处理器，并按需检索知识。无需向量数据库——FAQ 与产品知识通过摘要相似度匹配，仅在需要时加载完整内容。
 
-- **基于意图的路由** — LangGraph 条件边自动将请求分类为 FAQ 搜索、订单查询、退款、换货或通用聊天。
-- **订单生命周期管理** — 查询订单状态、处理退款与换货申请，全部状态通过内置存储持久化。
-- **知识库检索** — 将文档上传至多分类 Blob 存储；Agent 检索相关段落以回答售后政策问题。
-- **交互式 UI 卡片** — Agent 发出结构化卡片事件（订单详情、退款进度、换货确认、FAQ 来源），前端直接内联渲染。
-- **多轮上下文保持** — 对话状态与订单上下文通过 `langgraphStore` 跨轮次保留，支持“我另一个订单呢？”这类追问。
+- **意图识别** —— 将 incoming 消息分类为 FAQ、订单查询、退款、换货或通用聊天。
+- **知识路由** —— 通过摘要相似度将用户查询匹配到最相关的知识库条目，然后按需加载完整内容。
+- **订单工作流** —— 为订单查询、退款申请、换货申请提供专用处理器，支持结构化数据校验。
+- **知识库管理面板** —— 单独的管理端点，用于添加、更新和整理 FAQ 条目与产品文档。
+- **状态持久化** —— 工作流状态通过 `langgraphStore` 持久化，多轮交互跨请求存活。
+- **双语界面** —— 完整中 / 英界面，AI 输出根据语言环境自动适配。
 
-## Environment Variables
+## 环境变量
 
 | 变量 | 必填 | 说明 |
 |----------|----------|-------------|
@@ -27,7 +28,7 @@
 
 ### 如何获取 AI_GATEWAY_API_KEY
 
-1. 打开 Makers 控制台（https://console.cloud.tencent.com/edgeone/makers）
+1. 打开 Makers 控制台（https://edgeone.ai/makers/new?s_url=https://console.tencentcloud.com/edgeone/makers）
 2. 登录并启用 Makers
 3. 进入 Makers → Models → API Key，创建 Key
 4. 将其填入 `AI_GATEWAY_API_KEY`
@@ -42,35 +43,39 @@
 
 ```bash
 npm install
-# 本项目已包含 .env 文件，请直接更新其中的 AI_GATEWAY_API_KEY 与 AI_GATEWAY_BASE_URL
+cp .env.example .env
+# 编辑 .env，填入 AI_GATEWAY_API_KEY 与 AI_GATEWAY_BASE_URL
 edgeone makers dev
 ```
 
-本地可观测面板地址：http://localhost:8080/agent-metrics。
+本地可观测面板地址：http://localhost:8088/agent-metrics。
 
 ## 项目结构
 
 ```
-after-sales-assistant-edgeone/
+after-sales-assistant/
 ├── agents/
-│   ├── _shared.ts          # 模型初始化、SSE 辅助函数、订单类型与持久化
-│   ├── _data/              # 模拟订单数据与演示文档
+│   ├── chat/
+│   │   └── index.ts        # POST /chat —— 主聊天（含意图路由）
+│   ├── manage/
+│   │   └── index.ts        # POST /manage —— 知识库管理
+│   ├── upload/
+│   │   └── index.ts        # POST /upload —— 文档上传
+│   ├── stop/
+│   │   └── index.ts        # POST /stop —— 中止运行
+│   ├── seed-demo/
+│   │   └── index.ts        # POST /seed-demo —— 初始化演示数据
 │   ├── _graph/
-│   │   ├── builder.ts      # LangGraph 状态机编译
-│   │   ├── edges.ts        # 意图路由逻辑
-│   │   ├── nodes.ts        # 节点实现（意图、FAQ、订单、退款、换货）
-│   │   └── state.ts        # 图状态结构
-│   ├── chat/               # POST /chat —— 主 SSE 对话处理器
-│   └── stop/               # POST /stop —— 中止运行
+│   │   ├── builder.ts      # LangGraph 状态机构建器
+│   │   ├── state.ts        # 状态模式定义
+│   │   ├── nodes.ts        # 意图处理节点
+│   │   └── edges.ts        # 条件路由边
+│   ├── _data/              # 演示知识库数据
+│   ├── _i18n.ts            # 中 / 英翻译
+│   └── _shared.ts          # 模型初始化、SSE 辅助函数、日志
 ├── cloud-functions/
-│   ├── health/             # GET /health
-│   ├── manage/             # POST /manage —— 文档增删改查
-│   ├── seed-demo/          # POST /seed-demo —— 批量导入演示文档
-│   └── upload/             # POST /upload —— 文件或文本上传
+│   └── health/             # GET /health
 ├── app/                    # Next.js App Router 前端
-├── lib/
-│   ├── doc-store.ts        # 多分类 Blob 文档存储
-│   └── parser.ts           # 文件解析器（PDF/DOCX/XLSX/TXT/MD）
 └── edgeone.json            # EdgeOne 部署配置
 ```
 
@@ -79,35 +84,39 @@ after-sales-assistant-edgeone/
 ## 工作原理
 
 ### 运行模式
-`agents/` 下的文件以**会话模式**运行：相同 `conversation_id` 的请求会被粘性路由到同一 Agent 实例。这意味着多轮对话自动共享同一份内存上下文。
+`agents/` 下的文件以**会话模式**运行：相同 `conversation_id` 的请求会被粘性路由到同一 Agent 实例。这保证了 LangGraph 状态与对话上下文在后续消息中始终可用。
 
 ### 端到端流程
 
-1. **请求入口** —— 前端向 `/chat` POST `{ message, pendingAction }`。
-2. **意图识别** —— LangGraph 的 `intent_recognition` 节点将用户消息分类为：`faq_search`、`lookup_order`、`request_refund`、`request_exchange` 或 `general_chat`。
-3. **条件路由** —— `routeByIntent` 边将请求分发到对应节点。
-4. **工具 / 存储执行** —
-   - `lookup_order` 查询 `langgraphStore` 获取订单并发出 `order_detail` 卡片。
-   - `faq_search` 从 Blob 存储检索文档并生成带来源引用的答案。
-   - `request_refund` / `request_exchange` 校验订单状态、更新状态并发出进度卡片。
-5. **状态持久化** —— 每轮结束后，图状态（当前订单、意图、等待标记）以 `conversation_id` 为键写回 `langgraphStore`。
-6. **SSE 响应** —— 处理器向前端流式推送工作流步骤、AI 文本、卡片事件与智能跟进建议。
-7. **中止** —— 向 `/stop` POST 对话 ID，调用 `context.utils.abortActiveRun` 取消正在进行的生成。
+1. **消息接收** —— 前端 POST `/chat`，携带用户消息与语言环境，通过 `makers-conversation-id` Header 传入。
+2. **状态加载** —— 处理器从该对话的 `langgraphStore` 中加载先前保存的工作流状态。
+3. **意图识别** —— LangGraph `intent_recognition` 节点将消息分类为：`faq_search`、`lookup_order`、`request_refund`、`request_exchange` 或 `general_chat`。
+4. **条件路由** —— `routeByIntent` 边根据分类意图派发到对应的处理节点。
+5. **节点执行**：
+   - **faq_search** —— 将查询与知识库摘要匹配，加载最佳匹配的完整条目并返回答案。
+   - **lookup_order** —— 查询订单数据并返回状态、商品与物流信息。
+   - **request_refund** / **request_exchange** —— 引导用户完成退货/换货流程，进行结构化字段收集。
+   - **general_chat** —— 直接用 LLM 处理开放式问题。
+6. **状态保存** —— 更新的工作流状态被持久化回 `langgraphStore`。
+7. **SSE 输出** —— 响应以 SSE 事件流回传，包括 `text_delta`、`tool_called` 和供前端渲染的 UI 卡片事件。
 
 ### 关键路由与参数
-- `/chat` —— 主对话端点。接收 `message` 与可选的 `pendingAction`。
-- `/stop` —— 取消某对话的活跃运行。
-- `conversation_id` 由运行时通过 `context.conversation_id` 自动提供。
+- `/chat` —— 主客服端点。Header：`makers-conversation-id: <uuid>`；Body：`{ message, locale? }`。
+- `/manage` —— 知识库管理（增删改 FAQ 条目）。Body：`{ action, data }`。
+- `/upload` —— 知识库文档上传。Body：`{ files[] }`。
+- `/seed-demo` —— 初始化演示 FAQ 与订单数据（首次 setup 使用）。
+- `/stop` —— 中止活跃运行。Body：`{ conversation_id }`。
+- `/health` —— 存活探针（位于 `cloud-functions/`，不涉及 AI）。
+- `conversation_id` 由前端生成，通过 `makers-conversation-id` Header 传入；运行时会自动绑定到 `context.conversation_id`。
 
-### 运行参数
-- `agents.timeout`：900 秒
-- `agents.sandbox.timeout`：900 秒
+### 超时配置
+未自定义 Agent 超时，使用平台默认值。
 
 ## 相关资源
 
-- [Makers Agents 文档](https://edgeone.ai/makers)
-- [Makers 快速开始](https://edgeone.ai/makers/docs/quickstart)
-- [Makers Models](https://console.cloud.tencent.com/edgeone/makers/models)
+- [Makers Agents 文档](https://pages.edgeone.ai/document/agents) <!-- TODO: confirm slug -->
+- [Makers 快速开始](https://pages.edgeone.ai/document/quickstart) <!-- TODO: confirm slug -->
+- [Makers Models](https://pages.edgeone.ai/document/models) <!-- TODO: confirm slug -->
 
 ## 许可证
 
