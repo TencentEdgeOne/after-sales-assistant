@@ -114,9 +114,9 @@ No custom agent timeout is configured; the platform default applies.
 
 ## Resources
 
-- [Makers Agents Documentation](https://pages.edgeone.ai/document/agents) <!-- TODO: confirm slug -->
-- [Makers Quick Start](https://pages.edgeone.ai/document/quickstart) <!-- TODO: confirm slug -->
-- [Makers Models](https://pages.edgeone.ai/document/models) <!-- TODO: confirm slug -->
+- [Makers Agents Documentation](https://pages.edgeone.ai/document/agents)
+- [Makers Quick Start](https://pages.edgeone.ai/document/agents-quick-start)
+- [Makers Models](https://pages.edgeone.ai/document/models)
 
 ## License
 
