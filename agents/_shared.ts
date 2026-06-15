@@ -15,7 +15,7 @@ const _modelCache = new Map<string, ChatOpenAI>();
 export function createModel(env: AgentEnv): ChatOpenAI {
   const apiKey = env.AI_GATEWAY_API_KEY;
   const baseURL = env.AI_GATEWAY_BASE_URL;
-  const model = env.AI_MODEL || "@makers/deepseek-v4-flash";
+  const model = env.AI_GATEWAY_MODEL || env.AI_MODEL || "@makers/deepseek-v4-flash";
   const cacheKey = `${baseURL ?? ""}::${apiKey ?? ""}::${model}`;
 
   let cached = _modelCache.get(cacheKey);
