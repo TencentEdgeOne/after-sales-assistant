@@ -37,7 +37,10 @@ export default function Home() {
       const conversationId = localStorage.getItem(key) || crypto.randomUUID();
       await fetch("/stop", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "makers-conversation-id": conversationId,
+        },
         body: JSON.stringify({ conversation_id: conversationId }),
       }).catch(() => {});
       const response = await fetch("/reset", {

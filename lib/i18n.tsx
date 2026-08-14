@@ -46,6 +46,12 @@ const ZH: Record<string, string> = {
   "sug.refund": "我要退款",
   "sug.exchange": "我要换货",
   "sug.refundApply": "我要申请退款",
+  "sug.lookupOther": "查询其他订单",
+  "sug.faqGeneral": "售后政策咨询",
+  "sug.timelineRefund": "退款多久到账？",
+  "sug.address": "寄回地址是哪里？",
+  "sug.timelineExchange": "换货需要多久？",
+  "sug.lookupMyOrders": "查询我的订单",
 
   // Manage panel
   "ui.manage.title": "知识库",
@@ -136,6 +142,12 @@ const EN: Record<string, string> = {
   "sug.refund": "I want a refund",
   "sug.exchange": "I want to exchange",
   "sug.refundApply": "Apply for a refund",
+  "sug.lookupOther": "Look up another order",
+  "sug.faqGeneral": "After-sales policies",
+  "sug.timelineRefund": "How long for refund?",
+  "sug.address": "What's the return address?",
+  "sug.timelineExchange": "How long for exchange?",
+  "sug.lookupMyOrders": "Look up my orders",
 
   // Manage panel
   "ui.manage.title": "Knowledge Base",

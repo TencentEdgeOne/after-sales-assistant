@@ -254,9 +254,10 @@ export function ChatPanel() {
     setIsLoading(false);
     fetch("/stop", {
       method: "POST",
-      // NOTE: do NOT send makers-conversation-id header here — it would
-      // sticky-route /stop to the busy chat instance and abort would never fire.
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "makers-conversation-id": conversationId,
+      },
       body: JSON.stringify({ conversation_id: conversationId }),
     }).catch(() => {});
   }, [conversationId]);
