@@ -162,8 +162,20 @@ export function ChatPanel() {
               case "workflow_step":
                 setCurrentStep(event.label || event.step);
                 break;
+              case "ai_response_delta":
+                assistantContent += event.delta || "";
+                setMessages(prev => {
+                  const copy = [...prev];
+                  const last = copy[copy.length - 1];
+                  if (last.role === "assistant") {
+                    last.content = assistantContent;
+                    last.cards = [...cards];
+                  }
+                  return copy;
+                });
+                break;
               case "ai_response":
-                assistantContent = event.content;
+                assistantContent = event.content || assistantContent;
                 setMessages(prev => {
                   const copy = [...prev];
                   const last = copy[copy.length - 1];

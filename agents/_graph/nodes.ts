@@ -18,6 +18,39 @@ import { t, statusLabel, languageDirective, type Locale } from "../_i18n";
 
 const logger = createLogger("nodes");
 
+type StreamRuntime = {
+  signal?: AbortSignal;
+  writer?: (event: Record<string, unknown>) => void;
+};
+
+function chunkText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content.map(part => {
+    if (typeof part === "string") return part;
+    if (part && typeof part === "object" && "text" in part) return String((part as { text?: unknown }).text ?? "");
+    return "";
+  }).join("");
+}
+
+async function streamAnswer(
+  model: ReturnType<typeof createModel>,
+  messages: Parameters<ReturnType<typeof createModel>["invoke"]>[0],
+  runtime: StreamRuntime | undefined,
+  node: string,
+): Promise<string> {
+  let answer = "";
+  const stream = await (model as any).stream(messages, runtime?.signal ? { signal: runtime.signal } : undefined);
+  for await (const chunk of stream) {
+    if (runtime?.signal?.aborted) break;
+    const delta = chunkText(chunk?.content);
+    if (!delta) continue;
+    answer += delta;
+    runtime?.writer?.({ type: "ai_response_delta", node, delta });
+  }
+  return answer;
+}
+
 // ─── Store Order Helpers ───
 
 const ORDERS_NAMESPACE = ["aftersales", "orders"];
@@ -102,7 +135,7 @@ function detectStatusFromText(text: string): string {
 
 // ─── Intent Recognition ───
 
-export async function intentRecognition(state: AfterSalesStateType, env: AgentEnv) {
+export async function intentRecognition(state: AfterSalesStateType, env: AgentEnv, runtime?: StreamRuntime) {
   const ORDER_ID_RE = /ORD-\d{8}-\d{3}/i;
   if (
     state.waitingForUser &&
@@ -128,7 +161,7 @@ export async function intentRecognition(state: AfterSalesStateType, env: AgentEn
 
 如果用户同时提到订单号和退货，优先判断为 refund/exchange。`),
     new HumanMessage(state.userInput),
-  ]);
+  ], runtime?.signal ? { signal: runtime.signal } : undefined);
 
   const text = typeof response.content === "string" ? response.content : "";
   try {
@@ -147,7 +180,7 @@ export async function intentRecognition(state: AfterSalesStateType, env: AgentEn
 
 // ─── FAQ Search (Knowledge Base) ───
 
-export async function faqSearch(state: AfterSalesStateType, env: AgentEnv, context: any) {
+export async function faqSearch(state: AfterSalesStateType, env: AgentEnv, context: any, runtime?: StreamRuntime) {
   const locale = (state.locale || "zh") as Locale;
   const summaries = await getAllSummaries(context.store);
   logger.log(`Knowledge base has ${summaries.length} documents`);
@@ -173,7 +206,7 @@ export async function faqSearch(state: AfterSalesStateType, env: AgentEnv, conte
 文档列表：
 ${summaryList}`),
     new HumanMessage(state.userInput),
-  ]);
+  ], runtime?.signal ? { signal: runtime.signal } : undefined);
 
   const routeText = typeof routeResponse.content === "string" ? routeResponse.content : "";
   let selectedIndices: number[] = [];
@@ -209,7 +242,7 @@ ${summaryList}`),
   const contextText = contents.map(d => `【${d.category}/${d.filename}】\n${d.content}`).join("\n\n");
 
   // Answer generation — language directive forces output in user locale
-  const response = await model.invoke([
+  const answer = await streamAnswer(model, [
     new SystemMessage(`你是售后客服助手。根据以下知识库文档回答用户问题。
 要求：
 - 简洁友好，不要照搬原文
@@ -220,9 +253,7 @@ ${summaryList}`),
 知识库文档：
 ${contextText}${languageDirective(locale)}`),
     new HumanMessage(state.userInput),
-  ]);
-
-  const answer = typeof response.content === "string" ? response.content : "";
+  ], runtime, "faq_search");
   return {
     aiResponse: answer,
     faqResults: contents.map(d => ({ id: d.docId, title: d.filename, content: d.content })),
@@ -592,10 +623,10 @@ export async function requestExchange(state: AfterSalesStateType, context: any) 
 
 // ─── General Chat ───
 
-export async function generalChat(state: AfterSalesStateType, env: AgentEnv) {
+export async function generalChat(state: AfterSalesStateType, env: AgentEnv, runtime?: StreamRuntime) {
   const locale = (state.locale || "zh") as Locale;
   const model = createModel(env);
-  const response = await model.invoke([
+  const answer = await streamAnswer(model, [
     new SystemMessage(`你是一个友好的售后客服助手。可以帮助用户：
 - 查询订单状态（需要订单号）
 - 申请退货/退款
@@ -604,9 +635,9 @@ export async function generalChat(state: AfterSalesStateType, env: AgentEnv) {
 
 如果用户的问题模糊，引导他们提供更多信息。保持简洁友好。${languageDirective(locale)}`),
     new HumanMessage(state.userInput),
-  ]);
+  ], runtime, "general_chat");
   return {
-    aiResponse: typeof response.content === "string" ? response.content : "",
+    aiResponse: answer,
     cardEvent: null,
   };
 }

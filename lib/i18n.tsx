@@ -24,6 +24,10 @@ const ZH: Record<string, string> = {
   "ui.header.kb": "知识库",
   "ui.header.online": "在线",
   "ui.header.langSwitch": "EN",
+  "ui.header.reset": "重置全部数据",
+  "ui.header.resetting": "重置中...",
+  "ui.header.resetConfirm": "确定要重置全部应用数据吗？这将删除所有会话、知识库文档和订单，且无法恢复。",
+  "ui.header.resetFailed": "重置失败，请稍后重试。",
   "ui.warn.envMissing": "环境变量未配置，部分功能不可用。",
   "ui.warn.missing": "缺少：{names}",
 
@@ -110,6 +114,10 @@ const EN: Record<string, string> = {
   "ui.header.kb": "Knowledge Base",
   "ui.header.online": "Online",
   "ui.header.langSwitch": "中",
+  "ui.header.reset": "Reset all data",
+  "ui.header.resetting": "Resetting...",
+  "ui.header.resetConfirm": "Reset all application data? This will permanently delete all conversations, knowledge-base documents, and orders.",
+  "ui.header.resetFailed": "Reset failed. Please try again later.",
   "ui.warn.envMissing": "Environment variables not configured. Some features unavailable.",
   "ui.warn.missing": "Missing: {names}",
 

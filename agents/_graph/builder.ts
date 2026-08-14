@@ -21,12 +21,12 @@ type AgentEnv = Record<string, string | undefined>;
 
 export function buildAfterSalesGraph(context: any, env: AgentEnv) {
   const graph = new StateGraph(AfterSalesState)
-    .addNode("intent_recognition", (s) => intentRecognition(s, env))
-    .addNode("faq_search", (s) => faqSearch(s, env, context))
+    .addNode("intent_recognition", (s, config) => intentRecognition(s, env, config))
+    .addNode("faq_search", (s, config) => faqSearch(s, env, context, config))
     .addNode("lookup_order", (s) => lookupOrder(s, context))
     .addNode("request_refund", (s) => requestRefund(s, context))
     .addNode("request_exchange", (s) => requestExchange(s, context))
-    .addNode("general_chat", (s) => generalChat(s, env))
+    .addNode("general_chat", (s, config) => generalChat(s, env, config))
     .addEdge(START, "intent_recognition")
     .addConditionalEdges("intent_recognition", routeByIntent, {
       faq_search: "faq_search",

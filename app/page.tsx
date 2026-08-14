@@ -15,6 +15,8 @@ interface HealthStatus {
 export default function Home() {
   const { t, locale, setLocale } = useT();
   const [showManage, setShowManage] = useState(false);
+  const [resetVersion, setResetVersion] = useState(0);
+  const [isResetting, setIsResetting] = useState(false);
   const [health, setHealth] = useState<HealthStatus | null>(null);
 
   useEffect(() => {
@@ -25,6 +27,39 @@ export default function Home() {
   }, []);
 
   const showWarning = health && !health.ok;
+
+  const handleReset = async () => {
+    if (isResetting || !window.confirm(t("ui.header.resetConfirm"))) return;
+
+    setIsResetting(true);
+    try {
+      const key = "after-sales-conversation-id";
+      const conversationId = localStorage.getItem(key) || crypto.randomUUID();
+      await fetch("/stop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversation_id: conversationId }),
+      }).catch(() => {});
+      const response = await fetch("/reset", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "makers-conversation-id": conversationId,
+        },
+        body: JSON.stringify({}),
+      });
+
+      if (!response.ok) throw new Error("Reset failed");
+
+      localStorage.removeItem(key);
+      setShowManage(false);
+      setResetVersion(version => version + 1);
+    } catch {
+      window.alert(t("ui.header.resetFailed"));
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   return (
     <main className="h-screen flex flex-col bg-[#f7f8fa]">
@@ -65,6 +100,14 @@ export default function Home() {
             lang={locale}
           />
           <button
+            onClick={handleReset}
+            disabled={isResetting}
+            className="text-[11px] px-2.5 py-1 rounded-md border border-red-200 text-red-600 font-medium hover:bg-red-50 transition-colors disabled:opacity-50"
+            title={t("ui.header.resetConfirm")}
+          >
+            {isResetting ? t("ui.header.resetting") : t("ui.header.reset")}
+          </button>
+          <button
             onClick={() => setLocale(locale === "en" ? "zh" : "en")}
             className="text-[11px] px-2.5 py-1 rounded-md border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition-colors"
             title={locale === "en" ? "切换到中文" : "Switch to English"}
@@ -94,7 +137,7 @@ export default function Home() {
       {/* Body */}
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 min-w-0">
-          <ChatPanel />
+          <ChatPanel key={resetVersion} />
         </div>
 
         {showManage && (

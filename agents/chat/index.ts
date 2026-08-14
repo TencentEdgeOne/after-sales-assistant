@@ -44,6 +44,15 @@ async function saveState(context: any, threadId: string, state: Partial<AfterSal
 
 // ─── SSE Stream ───
 
+async function* streamStaticText(text: string, node: string, signal?: AbortSignal): AsyncGenerator<string> {
+  const chunkSize = 12;
+  for (let i = 0; i < text.length; i += chunkSize) {
+    if (signal?.aborted) return;
+    yield sseEvent({ type: "ai_response_delta", node, delta: text.slice(i, i + chunkSize) });
+    await new Promise(resolve => setTimeout(resolve, 12));
+  }
+}
+
 async function* streamAfterSales(
   userMessage: string,
   context: any,
@@ -84,15 +93,34 @@ async function* streamAfterSales(
     cardEvent: null,
   };
 
-  // Node-level stream: each event is `{ nodeName: stateUpdate }`. Pin the mode
-  // explicitly so behavior doesn't depend on the LangGraph default.
-  const stream = await graph.stream(input, { streamMode: "updates", signal });
+  // Keep graph updates (workflow/cards) and custom model deltas in one SSE stream.
+  const stream = await (graph as any).stream(input, {
+    streamMode: ["updates", "custom"],
+    signal,
+  });
   let lastState: Partial<AfterSalesStateType> = { ...input };
+  let completeResponse = "";
+  const streamedNodes = new Set<string>();
 
-  for await (const event of stream) {
-    if (signal?.aborted) break;
+  for await (const rawEvent of stream as AsyncIterable<unknown>) {
+    if (signal?.aborted) return;
 
-    for (const [nodeName, output] of Object.entries(event)) {
+    const isTuple = Array.isArray(rawEvent) && rawEvent.length === 2;
+    const mode = isTuple ? rawEvent[0] : "updates";
+    const event = isTuple ? rawEvent[1] : rawEvent;
+
+    if (mode === "custom") {
+      const payload = event as { type?: string; node?: string; delta?: string };
+      if (payload.type === "ai_response_delta" && payload.delta) {
+        const node = payload.node || "assistant";
+        streamedNodes.add(node);
+        completeResponse += payload.delta;
+        yield sseEvent({ type: "ai_response_delta", node, delta: payload.delta });
+      }
+      continue;
+    }
+
+    for (const [nodeName, output] of Object.entries((event || {}) as Record<string, unknown>)) {
       const nodeOutput = output as Partial<AfterSalesStateType>;
       lastState = { ...lastState, ...nodeOutput };
 
@@ -104,12 +132,22 @@ async function* streamAfterSales(
         yield sseEvent({ type: "card", cardType: nodeOutput.cardEvent.type, data: nodeOutput.cardEvent.data });
       }
 
-      if (nodeOutput.aiResponse && nodeOutput.aiResponse.trim()) {
-        yield sseEvent({ type: "ai_response", content: nodeOutput.aiResponse });
+      const response = nodeOutput.aiResponse?.trim();
+      if (response) {
+        if (!streamedNodes.has(nodeName)) {
+          completeResponse += nodeOutput.aiResponse || "";
+          for await (const delta of streamStaticText(nodeOutput.aiResponse || "", nodeName, signal)) {
+            yield delta;
+          }
+        }
+        yield sseEvent({ type: "ai_response_done", node: nodeName });
       }
     }
   }
 
+  if (signal?.aborted) return;
+
+  lastState.aiResponse = completeResponse;
   await saveState(context, conversationId, {
     currentOrder: lastState.currentOrder,
     orderId: lastState.orderId,
